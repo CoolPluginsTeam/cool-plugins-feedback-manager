@@ -1,0 +1,295 @@
+<?php
+/**
+ * Plugin Name: Cool Plugins Feedback Manager
+ * Version: 1.3.0
+ * Author: Cool Plugins Team
+ * Description: This plugin manage all feedback data received from users who deactivate 'Cool Plugins'.
+ */
+
+ define('CPFM_FILE', __FILE__);
+ define("CPFM_DIR", plugin_dir_path(CPFM_FILE));
+
+ class Cool_Plugins_Feedback_Manager{
+
+        function __construct(){
+            require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+            require_once CPFM_DIR . 'cpfm-feedback-db.php';
+
+            add_action('admin_init', array($this, 'cpfm_init') );
+            add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
+            add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
+            add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
+        }
+
+        function verify_email($email) {
+            $client = 
+            new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');
+            $quickemailverification = $client->quickemailverification();
+            $response = $quickemailverification->verify($email);
+        
+            return $response->body; 
+        }
+
+        function send_deactivation_feedback_to_fluent_crm($user_email,$user_feedback,$user_domain) {
+
+            $webhook_url = 'https://my.coolplugins.net/?fluentcrm=1&route=contact&hash=e45c3373-30c3-4809-bf03-13b98a61926b';
+        
+            $data = array(
+                'email'      => $user_email,   
+                'first_name' => $user_email,              
+                // 'first_name' => 'feedback',              
+                // 'last_name'  => 'manager',               
+                'feedback'   => $user_feedback,
+                'tag'        => 'Deactivation Feedback', 
+                'user_domain' => $user_domain, 
+            );
+        
+            $response = wp_remote_post($webhook_url, array(
+                'method'    => 'POST',
+                'headers'   => array(
+                    'Content-Type' => 'application/json',
+                ),
+                'body'      => json_encode($data),
+                'sslverify' => true, // Use true in production and false in development
+            ));
+
+            if (is_wp_error($response)) {
+                echo 'Error: ' . $response->get_error_message();
+                return;
+            }
+        
+            $response_body = wp_remote_retrieve_body($response);
+        }        
+            
+        function add_product_to_ticket($ticket_id,$product_name) {
+
+            $product_id;  
+
+            switch(strtolower($product_name)) {
+                case "conditional-fields-for-elementor-form":
+                    $product_id = 29;
+                    break;
+                case "cool timeline":
+                    $product_id = 16;
+                    break;
+                case "events shortcodes":
+                    $product_id = 19;
+                    break;
+                case "timeline widget addon for elementor":
+                    $product_id = 17;
+                    break;
+                case "loco automatic translate addon":
+                    $product_id = 22;
+                    break;
+                case "cryptocurrency widgets for elementor":
+                    $product_id = 24;
+                    break;
+                default:
+                    break;
+            }
+
+        
+            $api_url = "https://my.coolplugins.net/wp-json/fluent-support/v2/tickets/{$ticket_id}/property"; 
+
+            // $api_url = "https://primesite.com/wp-json/fluent-support/v2/tickets/{$ticket_id}/property"; 
+        
+            $username = 'admin';
+            // my.coolplugins site password
+            $application_password = 'Dt3i VprH pQaB fHY4 At1V tSLo';
+
+            // primesite site password
+            // $application_password = '40cN dFeU 2Yt8 b41o DhLB LYvt';
+        
+            $auth = base64_encode("$username:$application_password");
+        
+            // Request parameters with JSON encoding
+            $params = json_encode(array(
+                'prop_name'  => 'product_id',
+                'prop_value' => $product_id,
+            ));
+        
+            // Send the PUT request with 'body' parameter included
+            $response = wp_remote_request($api_url, array(
+                'method'    => 'PUT',
+                'headers'   => array(
+                    'Authorization' => 'Basic ' . $auth,
+                    'Content-Type'  => 'application/json',
+                ),
+                'body'      => $params,
+                'sslverify' => true,
+                'timeout'   => 15,
+            ));
+        
+            if (is_wp_error($response)) {
+                error_log('API Request Error: ' . $response->get_error_message());
+            } else {
+                $response_body = json_decode(wp_remote_retrieve_body($response), true);
+                
+                return $response_body;
+            }
+        }
+        
+
+        function create_new_ticket($title, $content, $email,$domain,$client_priority = 'normal', $custom_data = []){
+
+            // $api_url = 'https://primesite.com/wp-json/fluent-support/v2/customer-portal/tickets'; 
+            // $api_url = 'https://my.coolplugins.net/wp-json/fluent-support/v2/customer-portal/tickets'; 
+            // $username = 'admin'; 
+            
+            // primesite
+            // $app_password = '40cN dFeU 2Yt8 b41o DhLB LYvt'; 
+            
+            // my.coolplugins site
+            // $app_password = 'Dt3i VprH pQaB fHY4 At1V tSLo'; 
+
+            // $body = [
+            //     'title'           => $title,
+            //     'content'         => $content,
+            //     'client_priority' => $client_priority,
+            //     'custom_data'     => $custom_data,
+            // ];
+        
+            // $response = wp_remote_post($api_url, [
+            //     'headers' => [
+            //         'Authorization' => 'BASIC ' . base64_encode($username . ':' . $app_password),
+            //         'Content-Type'  => 'application/json',
+            //     ],
+            //     'body' => json_encode($body),
+            //     'sslverify' => false,
+            //     'timeout' => 15,
+            // ]);
+
+            $webhook_url = 'https://my.coolplugins.net/wp-json/fluent-support/v2/public/incoming_webhook/b29405dd-c467-4574-87f2-d6109e0259d2';
+
+            // $webhook_url = 'http://primesite.com/wp-json/fluent-support/v2/public/incoming_webhook/69a25fcf-1a7f-4fbf-a4cf-91c9a2eb0725';
+
+            $data = array(
+                'sender[first_name]' => $email,
+                // 'sender[first_name]' => 'Feedback',
+                // 'sender[last_name]'  => 'Manager',
+                'title'              => $title,
+                'content'            => $content,
+                'sender[email]'      => $email,
+                'custom_fields[cf_website]'      => $domain,
+            );
+
+            $is_mail_valid = $this->verify_email($email);
+            // $is_mail_valid = $this->verify_email('himanshu.coolplugins@gmail.com');
+            if($is_mail_valid['result'] === 'valid' && $content !== "N/A"){
+                $response = wp_remote_post($webhook_url, array(
+                    'method'    => 'POST',
+                    'headers'   => array(
+                    ),
+                    'body'      => $data, 
+                    'sslverify' => true, 
+                ));
+    
+                if (is_wp_error($response)) {
+                    return 'Error: ' . $response->get_error_message();
+                }
+
+                $body = wp_remote_retrieve_body($response);
+                $data = json_decode($body, true);
+    
+                $this->send_deactivation_feedback_to_fluent_crm($email,$content,$domain);
+                if($data['type'] === "new_ticket" && isset($data['ticket_id'])){
+                    return $data['ticket_id'];
+                }
+                
+                return 'Error: Failed to create ticket. Response: ' . $body;
+            }else{
+                return "";
+            }
+
+        }
+
+        function cpfm_register_feedback_api(){
+            register_rest_route( 'coolplugins-feedback/v1', 'feedback', array(
+                'methods' => 'POST',
+                'callback' => array($this, 'get_custom_users_data' )
+            ));
+        }
+
+        function get_custom_users_data(){
+            
+            $response = false;
+
+            if( isset($_REQUEST['plugin_version']) && isset($_REQUEST['domain']) &&
+             isset($_REQUEST['reason']) ){
+                 
+                 if( isset($_REQUEST['review']) ){
+                        $review = esc_sql( sanitize_text_field(trim($_REQUEST['review'])) );
+                 }else{
+                     $review = '';
+                 }
+
+            if($_REQUEST['reason'] === 'other'){
+                if(strlen($review) >= 20){
+                    $ticket_id = $this->create_new_ticket("Feedback from plugin deactivation : ".$_REQUEST['plugin_name']."",$review,$_REQUEST['email'],$_REQUEST['domain']);
+                    
+                    if(!empty($ticket_id) && isset($ticket_id)){
+                        $this->add_product_to_ticket($ticket_id,$_REQUEST['plugin_name']);
+                    } 
+                }
+            }
+
+                $DB = new cpfm_database();
+                $response = $DB->cpfm_insert_feedback( array(array(
+                                'plugin_version'=> (string)$_REQUEST['plugin_version'],
+                                'plugin_name'=>$_REQUEST['plugin_name'],
+                                'reason'=> $_REQUEST['reason'],
+                                'review'=> $review,
+                                'domain' => $_REQUEST['domain'],
+                                'email'=> empty($_REQUEST['email'])?'N/A':$_REQUEST['email'],
+                            )) );
+               
+                
+            }
+            
+            die(json_encode($response));
+        }
+
+        function cpfm_add_menu(){
+            $hook = add_menu_page('Cool Plugins Feedback Data', 'Cool Plugins Feedback Manager', 'manage_options', 'cpfm', array($this,'CPFM_feedback_page'), '', 7);
+            add_action( "load-".$hook, array( $this, 'cpfm_add_options' ) ); 
+        }
+
+        function cpfm_add_options(){
+
+            $option = 'per_page';
+     
+            $args = array(
+                'label' => 'Result per page',
+                'default' => 10,
+                'option' => 'results_per_page'
+            );
+             require_once CPFM_DIR . 'cpfm-display-table.php';
+            add_screen_option( $option, $args );
+            // create columns field for screen options
+            new cpfm_list_table;
+
+        }
+
+		function cpfm_save_screen_options($status, $option, $value) {
+			if( $option == "results_per_page" ){
+				return $value;
+			}
+			return $status;
+		}
+		
+        function cpfm_feedback_page(){
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            $list = new cpfm_list_table();
+            $list->prepare_items();
+            $list->display();
+        }
+
+        function cpfm_init(){
+
+            $database = new cpfm_database();
+            $database->create_table();
+
+        }
+
+ }
+ new Cool_Plugins_Feedback_Manager();

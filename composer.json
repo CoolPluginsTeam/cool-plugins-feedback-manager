@@ -1,0 +1,11 @@
+{
+    "require": {
+        "quickemailverification/quickemailverification": "*"
+    },
+    "config": {
+    "platform": {
+        "php": "7.4.0"
+    }
+}
+
+}
