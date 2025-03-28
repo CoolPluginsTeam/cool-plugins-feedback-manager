@@ -35,8 +35,10 @@ class cpfm_database {
 	 */
 	public function get_columns()
 	{
+	
 		return array(
 			'id' => '%d',
+			'date' => '%s',
 			'plugin_version' => '%s',
 			'plugin_name' => '%s',
 			'review' => '%s',
@@ -44,6 +46,7 @@ class cpfm_database {
             'email' => '%f',
             'reason' => '%s',
 		);
+		
 	}
 
 	/*
@@ -67,6 +70,7 @@ class cpfm_database {
 	{
 		return array(
 			'id' =>'',
+			'date' => '',
 			'plugin_version' => '',
 			'plugin_name' => '',
 			'review' => '',
@@ -320,6 +324,8 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`review` varchar(250) NOT NULL,
 			`domain` varchar(250) NOT NULL,
 			`email` varchar(250),
+			`date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			`extra_details` JSON,
 			`deactivation_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id)
 		) CHARACTER SET utf8 COLLATE utf8_general_ci;";

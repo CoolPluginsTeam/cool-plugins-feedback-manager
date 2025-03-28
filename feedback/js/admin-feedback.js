@@ -96,6 +96,39 @@
             $('#cool-plugin-skipNdeactivate').attr('id','deactivating-plugin');
             window.location = plugin_deactivate_link;
         });
+        $(document).on('click', '.more-details-link', function(event) {
+            event.preventDefault();
+            
+            var itemId = $(this).data('id');
+
+            $('#popup-box').fadeIn();
+
+            $('#popup-select').change(function () {
+            let selectedValue = $(this).val();
+            $.ajax({
+                url: ajaxurl, 
+                type: "POST",
+                data: {
+                action: "get_selected_value",
+                value: selectedValue,
+                item_id: itemId 
+
+                },
+                success: function (response) {
+                $("#table-container").html(response);
+                },
+                error: function (error) {
+                console.log("AJAX Error:", error);
+                }
+            });
+            });
+        });
+        
+        // Close popup when clicking the close button
+        $(document).on('click', '#close-popup', function() {
+            $('#popup-box').fadeOut();
+                  
+        });
 
     });
 })(jQuery);

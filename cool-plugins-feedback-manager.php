@@ -19,7 +19,44 @@
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
+            register_deactivation_hook(__FILE__, array($this, 'cpfn_deactivate'));
+            add_action('wp_enqueue_scripts', array($this,'enqueue_my_script'));
+            
+            add_action('wp_ajax_fetch_item_details', array($this,'fetch_item_details'));
+            add_action('wp_ajax_get_selected_value', array($this,'get_selected_value'));
+            add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
+           
         }
+
+        
+        public static function get_selected_value() {
+            
+            $value = sanitize_text_field($_POST['value']); 
+             require_once CPFM_DIR . 'cpfm-display-table.php';
+             $html =  cpfm_list_table::cpfm_default_tables($value,$_POST['item_id']);
+
+            // return $html;
+            echo json_encode($html);
+          
+            exit();
+        }
+        function enqueue_my_script() {
+            wp_enqueue_script('my-ajax-script', get_template_directory_uri() . '/js/custom.js', array('jquery'), null, true);
+            wp_localize_script('my-ajax-script', 'ajax_object', array('ajaxurl' => admin_url('admin-ajax.php')));
+        }
+
+        function enqueue_feedback_script() {
+            wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback.js', array('jquery'), '1.0.0', true );
+            
+        }
+        
+        function cpfn_deactivate(){
+
+            $database = new cpfm_database();
+            $database->drop_table();
+
+        }
+
 
         function verify_email($email) {
             $client = 
@@ -132,41 +169,11 @@
 
         function create_new_ticket($title, $content, $email,$domain,$client_priority = 'normal', $custom_data = []){
 
-            // $api_url = 'https://primesite.com/wp-json/fluent-support/v2/customer-portal/tickets'; 
-            // $api_url = 'https://my.coolplugins.net/wp-json/fluent-support/v2/customer-portal/tickets'; 
-            // $username = 'admin'; 
-            
-            // primesite
-            // $app_password = '40cN dFeU 2Yt8 b41o DhLB LYvt'; 
-            
-            // my.coolplugins site
-            // $app_password = 'Dt3i VprH pQaB fHY4 At1V tSLo'; 
-
-            // $body = [
-            //     'title'           => $title,
-            //     'content'         => $content,
-            //     'client_priority' => $client_priority,
-            //     'custom_data'     => $custom_data,
-            // ];
-        
-            // $response = wp_remote_post($api_url, [
-            //     'headers' => [
-            //         'Authorization' => 'BASIC ' . base64_encode($username . ':' . $app_password),
-            //         'Content-Type'  => 'application/json',
-            //     ],
-            //     'body' => json_encode($body),
-            //     'sslverify' => false,
-            //     'timeout' => 15,
-            // ]);
 
             $webhook_url = 'https://my.coolplugins.net/wp-json/fluent-support/v2/public/incoming_webhook/b29405dd-c467-4574-87f2-d6109e0259d2';
 
-            // $webhook_url = 'http://primesite.com/wp-json/fluent-support/v2/public/incoming_webhook/69a25fcf-1a7f-4fbf-a4cf-91c9a2eb0725';
-
             $data = array(
                 'sender[first_name]' => $email,
-                // 'sender[first_name]' => 'Feedback',
-                // 'sender[last_name]'  => 'Manager',
                 'title'              => $title,
                 'content'            => $content,
                 'sender[email]'      => $email,
@@ -174,7 +181,6 @@
             );
 
             $is_mail_valid = $this->verify_email($email);
-            // $is_mail_valid = $this->verify_email('himanshu.coolplugins@gmail.com');
             if($is_mail_valid['result'] === 'valid' && $content !== "N/A"){
                 $response = wp_remote_post($webhook_url, array(
                     'method'    => 'POST',
@@ -204,14 +210,52 @@
         }
 
         function cpfm_register_feedback_api(){
-            register_rest_route( 'coolplugins-feedback/v1', 'feedback', array(
+            register_rest_route( 'coolplugins-feedback/v1', 'feedbacktest', array(
                 'methods' => 'POST',
                 'callback' => array($this, 'get_custom_users_data' )
             ));
         }
 
-        function get_custom_users_data(){
+        function get_user_info() {
+            global $wpdb;
+        
+            $data = [
+            'server_software'        => sanitize_text_field($_SERVER['SERVER_SOFTWARE'] ?? 'N/A'),
+            'mysql_version'          => sanitize_text_field($wpdb->get_var("SELECT VERSION()")),
+            'php_version'            => sanitize_text_field(phpversion()),
+            'wp_version'             => sanitize_text_field(get_bloginfo('version')),
+            'wp_debug'               => sanitize_text_field(defined('WP_DEBUG') && WP_DEBUG ? 'Enabled' : 'Disabled'),
+            'wp_memory_limit'        => sanitize_text_field(ini_get('memory_limit')),
+            'wp_max_upload_size'     => sanitize_text_field(ini_get('upload_max_filesize')),
+            'wp_permalink_structure' => sanitize_text_field(get_option('permalink_structure', 'Default')),
+            'wp_multisite'           => sanitize_text_field(is_multisite() ? 'Enabled' : 'Disabled'),
+            'wp_language'            => sanitize_text_field(get_option('WPLANG', get_locale()) ?: get_locale()),
+            'wp_prefix'              => sanitize_key($wpdb->prefix), // Sanitizing database prefix
+            'wp_theme'               => [
+                'name'      => sanitize_text_field(wp_get_theme()->get('Name')),
+                'version'   => sanitize_text_field(wp_get_theme()->get('Version')),
+                'theme_uri' => esc_url(wp_get_theme()->get('ThemeURI'))
+            ],
+            ];
+        
+            if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            }
             
+            $data['active_plugins'] = array_map(function ($plugin) {
+            $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . sanitize_text_field($plugin));
+            return [
+                'name'       => sanitize_text_field($plugin_data['Name']),
+                'version'    => sanitize_text_field($plugin_data['Version']),
+                'plugin_uri' => esc_url($plugin_data['PluginURI'])
+            ];
+            }, get_option('active_plugins', []));
+        
+            return json_encode($data); 
+        }
+
+        function get_custom_users_data(){
+            GLOBAL $wpdb;
             $response = false;
 
             if( isset($_REQUEST['plugin_version']) && isset($_REQUEST['domain']) &&
@@ -231,19 +275,19 @@
                         $this->add_product_to_ticket($ticket_id,$_REQUEST['plugin_name']);
                     } 
                 }
-            }
+            }   
 
                 $DB = new cpfm_database();
                 $response = $DB->cpfm_insert_feedback( array(array(
-                                'plugin_version'=> (string)$_REQUEST['plugin_version'],
-                                'plugin_name'=>$_REQUEST['plugin_name'],
-                                'reason'=> $_REQUEST['reason'],
-                                'review'=> $review,
-                                'domain' => $_REQUEST['domain'],
-                                'email'=> empty($_REQUEST['email'])?'N/A':$_REQUEST['email'],
-                            )) );
-               
-                
+                    'extra_details'   => $this->get_user_info(),
+                    'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
+                    'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
+                    'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
+                    'review'         => isset($review) ? sanitize_textarea_field($review) : '',
+                    'domain'         => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
+                    'date'           => date('Y-m-d'),
+                    'email'          => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
+                )));              
             }
             
             die(json_encode($response));
@@ -282,6 +326,7 @@
             $list = new cpfm_list_table();
             $list->prepare_items();
             $list->display();
+            $list->cpfm_default_tables($this,$id="");
         }
 
         function cpfm_init(){

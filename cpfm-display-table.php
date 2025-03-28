@@ -84,12 +84,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
         return $columns = array(
             // 'cb' => '<input type="checkbox"/>',
             'id' => __('Sr.'),
+            'date' => __('Date'),
             'plugin_version' => __('Plugin Version'),
             'plugin_name' => __('Plugin Name'),
             'reason' => __('Reason'),
             'review' => __('Review'),
             'domain' => __('Domain'),
             'email' => __('Email'),
+            'more_details' => __('More Details'),
         );
     }
 
@@ -257,12 +259,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
         //Get the columns registered in the get_columns and get_sortable_columns methods
         $columns = $this->get_column_info();
 
-                    //Display the column
                     switch ($column_name) {
                         case "id":
                         // wp_create_nonce('cpfm_bulk_delete');
                             return $item->id;
                         break;
+                        case "date":
+                            return date("F j, Y", strtotime($item->date));
+                        break;                     
                         case "plugin_version":
                            return $item->plugin_version;
                         break;
@@ -281,13 +285,161 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         case "email":
                             return '<a href="mailto:'.$item->email.';">'.$item->email.'</a>';
                         break;
+                        case "more_details":
+                            return '<a href="#" class="more-details-link" data-id="' . $item->id . '">More Details</a>';
+                        break;
+                        
                         default:
                             return 'unknown column '.$column_name;
                     }
     }
+    static function cpfm_default_tables($value,$id) {
 
+        $output = "";
+        $output .= '<div id="popup-box" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0px 0px 10px gray; width: 80%; border-radius: 8px;">';
+        $output .= '<select id="popup-select" style="margin-bottom: 20px;">';
+        $output .= '<option value="default" >Default</option>';
+        $output .= '<option value="plugin" selected>Plugin</option>';
+        $output .= '<option value="theme">Theme</option>';
+        $output .= '</select>';
+        $output .= '<table id="table-container" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">';
+        $output .= self::print_item($value,$id);
+        $output .= '</table>';
+        $output .= '<button id="close-popup" style="padding: 10px 20px; background-color: #0073aa; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
+        $output .= '</div>';
+
+        echo $output;
+    }
+
+
+static function print_item($value, $id) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'cpfm_feedbacks';
+
+    $result = $wpdb->get_row(
+        $wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id),
+        ARRAY_A
+    );
+
+    if (!$result) {
+        echo "No data found for the given ID.";
+        return;
+    }
+
+    // Decode 'extra_details'
+    $extra_details = isset($result['extra_details']) ? $result['extra_details'] : '';
+    $decoded_details = json_decode($extra_details, true);
+ 
+    if (!$decoded_details) {
+        echo "Invalid or empty extra details.";
+        return;
+    }
+
+    $output = '';
+
+    // Condition for Active Plugins Data
+    if ($value === 'plugin' || $value ='theme') {
+
+        $active_plugins = $decoded_details['active_plugins'];
+       
+
+        $output .= '<table border="1" style="border-collapse: collapse; width: 100%;">';
+        $output .= '<thead>';
+        $output .= '<tr style="background-color: #f2f2f2;">';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">ID</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Name</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Version</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">URL</th>';
+        $output .= '</tr>';
+        $output .= '</thead>';
+        $output .= '<tbody>';
+
+        $count = 1;
+
+
+if ($value === 'plugin'){
+
+    foreach ($active_plugins as $plugin) {
+        $plugin_name = isset($plugin['name']) ? esc_html($plugin['name']) : 'N/A';
+        $plugin_version = isset($plugin['version']) ? esc_html($plugin['version']) : 'N/A';
+        $plugin_url = isset($plugin['plugin_uri']) && !empty($plugin['plugin_uri']);
+           
+        $output .= '<tr>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . $count . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . $plugin_name . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . $plugin_version . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . ($plugin_url ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' : 'N/A') . '</td>';
+        $output .= '</tr>';
+        $count++;
+    }
+}elseif ($value === 'theme') {
+    if (!isset($decoded_details['wp_theme']) || empty($decoded_details['wp_theme'])) {
+        echo "No active theme found.";
+        return;
+    }
+
+    $wp_theme = $decoded_details['wp_theme'];
+
+    $theme_name = isset($wp_theme['name']) ? esc_html($wp_theme['name']) : 'N/A';
+    $theme_version = isset($wp_theme['version']) ? esc_html($wp_theme['version']) : 'N/A';
+    $theme_url = isset($wp_theme['theme_uri']) && !empty($wp_theme['theme_uri']);
+     
+
+    $output .= '<tr>';
+    $output .= '<td style="padding: 10px; border: 1px solid #ddd;">1</td>';
+    $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . $theme_name . '</td>';
+    $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . $theme_version . '</td>';
+    $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . ($theme_url ? '<a href="' . esc_url($wp_theme['theme_uri']) . '" target="_blank">' . esc_html($wp_theme['theme_uri']) . '</a>' : 'N/A') . '</td>';
+    $output .= '</tr>';
+}else{
+    echo "not select";
 }
 
+        $output .= '</tbody>';
+        $output .= '</table>';
+
+    } else{
+        // Condition for Basic WP Data
+        $output .= '<table border="1" style="border-collapse: collapse; width: 100%;">';
+        $output .= '<thead id="basic-data">';
+        $output .= '<tr style="background-color: #f2f2f2;">';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Server Software</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Mysql Version</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Php Version</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Version</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Debug</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Memory Limit</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Max Upload Size</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Permalink Structure</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Multisite</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Language</th>';
+        $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Prefix</th>';
+        $output .= '</tr>';
+        $output .= '</thead>';
+        $output .= '<tbody>';
+        $output .= '<tr>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['server_software'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['mysql_version'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['php_version'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_version'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_debug'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_memory_limit'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_max_upload_size'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_permalink_structure'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_multisite'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_language'] ?? 'N/A') . '</td>';
+        $output .= '<td style="padding: 10px; border: 1px solid #ddd;">' . esc_html($decoded_details['wp_prefix'] ?? 'N/A') . '</td>';
+        $output .= '</tr>';
+        $output .= '</tbody>';
+        $output .= '</table>';
+    }
+
+    return $output;
+}
+
+
+
+}
 
 /*
 |--------------------------------------------------------------------------------------------|
