@@ -20,8 +20,21 @@ class cpfm_list_table extends CPFM_WP_List_Table
             'ajax' => false, // Don't support Ajax for this table
         ));
 
+        add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
+        wp_enqueue_style('feedback-style', plugin_dir_url(__FILE__) . 'feedback/css/admin-feedback.css',null,$this->plugin_version );
     }
- 
+    
+    function enqueue_feedback_script() {
+        
+        wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback.js', array('jquery'), '1.0.0', true );
+
+        wp_localize_script('feedback-script', 'ajax_object', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('get_selected_value_nonce'),
+        ));
+        
+    }
+    
     /*
     |--------------------------------------------------------------------------------------|
     | Add extra markup in the toolbars before or after the list                            |
@@ -296,15 +309,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
     static function cpfm_default_tables($value,$id) {
 
         $output = "";
-        $output .= '<div id="popup-box" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; box-shadow: 0px 0px 10px gray; width: 80%; border-radius: 8px;">';
-        $output .= '<select id="popup-select" style="margin-bottom: 20px;">';
+        $output .= '<div id="popup-box">';
+        $output .= '<select id="popup-select">';
         $output .= '<option value="default" selected>Default</option>';
-        $output .= '<option value="plugin" >Plugin</option>';
+        $output .= '<option value="plugin">Plugin</option>';
         $output .= '<option value="theme">Theme</option>';
         $output .= '</select>';
-        $output .= '<table id="table-container" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">';
-        $output .= '</table>'; 
-        $output .= '<button id="close-popup" style="padding: 10px 20px; background-color: #0073aa; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
+        $output .= '<table id="table-container"></table>';
+        $output .= '<button id="close-popup">Close</button>';
         $output .= '</div>';
     
         echo $output;

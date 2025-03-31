@@ -125,6 +125,7 @@
                     action: "get_extra_data",
                     value: selectedValue,
                     item_id: itemId,
+                    nonce: ajax_object.nonce,
                 },
                 success: function (response) {
                     try {

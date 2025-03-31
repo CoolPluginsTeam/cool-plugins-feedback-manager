@@ -20,12 +20,17 @@
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_get_extra_data', array($this,'get_extra_data'));
-            add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
+            // add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
            
         }
 
         
         public static function get_extra_data() {
+
+            if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'get_selected_value_nonce')) {
+                wp_send_json_error(['message' => 'Nonce verification failed.']);
+                exit();
+            }
 
             $value = sanitize_text_field($_POST['value']); 
             require_once CPFM_DIR . 'cpfm-display-table.php';
@@ -37,11 +42,7 @@
             exit();
         }
 
-        function enqueue_feedback_script() {
-            wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback.js', array('jquery'), '1.0.0', true );
-            
-        }
-        
+
         function verify_email($email) {
             $client = 
             new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');
