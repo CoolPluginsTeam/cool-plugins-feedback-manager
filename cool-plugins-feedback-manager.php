@@ -27,7 +27,7 @@
 
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'get_selected_value_nonce')) {
                 wp_send_json_error(['message' => 'Nonce verification failed.']);
-                exit();
+                wp_die();
             }
 
             $value = sanitize_text_field($_POST['value']); 
@@ -37,7 +37,7 @@
         
             echo json_encode(['html' => $html]);
             
-            exit();
+            wp_die();
         }
 
 
