@@ -104,7 +104,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             'review' => __('Review'),
             'domain' => __('Domain'),
             'email' => __('Email'),
-            'more_details' => __('More Details'),
+            'more_details' => __('Extra Details'),
         );
     }
 
@@ -299,21 +299,22 @@ class cpfm_list_table extends CPFM_WP_List_Table
                             return '<a href="mailto:'.$item->email.';">'.$item->email.'</a>';
                         break;
                         case "more_details":
-                            return '<a href="#" class="more-details-link" data-id="' . $item->id . '">More Details</a>';
+                            return '<a href="#" class="more-details-link" data-id="' . $item->id . '">View More</a>';
                         break;
                         
                         default:
                             return 'unknown column '.$column_name;
                     }
     }
-    static function cpfm_default_tables($value,$id) {
+
+    static function cpfm_default_tables($value) {
 
         $output = "";
         $output .= '<div id="popup-box">';
         $output .= '<select id="popup-select">';
-        $output .= '<option value="default" selected>Default</option>';
-        $output .= '<option value="plugin">Plugin</option>';
-        $output .= '<option value="theme">Theme</option>';
+        $output .= '<option value="default" selected>Server Info</option>';
+        $output .= '<option value="plugin">Plugins Info</option>';
+        $output .= '<option value="theme">Themes Info</option>';
         $output .= '</select>';
         $output .= '<table id="table-container"></table>';
         $output .= '<button id="close-popup">Close</button>';

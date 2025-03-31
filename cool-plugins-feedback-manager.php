@@ -20,8 +20,6 @@
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_get_extra_data', array($this,'get_extra_data'));
-            // add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
-           
         }
 
         
@@ -279,6 +277,7 @@
         }
 
         function cpfm_add_menu(){
+
             $hook = add_menu_page('Cool Plugins Feedback Data', 'Cool Plugins Feedback Manager', 'manage_options', 'cpfm', array($this,'CPFM_feedback_page'), '', 7);
             add_action( "load-".$hook, array( $this, 'cpfm_add_options' ) ); 
         }
@@ -307,11 +306,12 @@
 		}
 		
         function cpfm_feedback_page(){
+
             require_once CPFM_DIR . 'cpfm-display-table.php';
             $list = new cpfm_list_table();
             $list->prepare_items();
             $list->display();
-            $list->cpfm_default_tables($this,$id="");
+            $list->cpfm_default_tables($this);
         }
 
         function cpfm_init(){
