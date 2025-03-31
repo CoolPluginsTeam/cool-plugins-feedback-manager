@@ -19,10 +19,6 @@
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
-            register_deactivation_hook(__FILE__, array($this, 'cpfn_deactivate'));
-            add_action('wp_enqueue_scripts', array($this,'enqueue_my_script'));
-            
-            add_action('wp_ajax_fetch_item_details', array($this,'fetch_item_details'));
             add_action('wp_ajax_get_selected_value', array($this,'get_selected_value'));
             add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
            
@@ -30,19 +26,14 @@
 
         
         public static function get_selected_value() {
-            
             $value = sanitize_text_field($_POST['value']); 
-             require_once CPFM_DIR . 'cpfm-display-table.php';
-             $html =  cpfm_list_table::cpfm_default_tables($value,$_POST['item_id']);
-
-            // return $html;
-            echo json_encode($html);
-          
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            
+            $html = cpfm_list_table::print_item($value, $_POST['item_id']); 
+        
+            echo json_encode(['html' => $html]);
+            
             exit();
-        }
-        function enqueue_my_script() {
-            wp_enqueue_script('my-ajax-script', get_template_directory_uri() . '/js/custom.js', array('jquery'), null, true);
-            wp_localize_script('my-ajax-script', 'ajax_object', array('ajaxurl' => admin_url('admin-ajax.php')));
         }
 
         function enqueue_feedback_script() {
@@ -50,14 +41,6 @@
             
         }
         
-        function cpfn_deactivate(){
-
-            $database = new cpfm_database();
-            $database->drop_table();
-
-        }
-
-
         function verify_email($email) {
             $client = 
             new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');

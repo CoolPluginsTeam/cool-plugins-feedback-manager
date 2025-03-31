@@ -96,33 +96,45 @@
             $('#cool-plugin-skipNdeactivate').attr('id','deactivating-plugin');
             window.location = plugin_deactivate_link;
         });
-        $(document).on('click', '.more-details-link', function(event) {
+        $(document).on("click", ".more-details-link", function (event) {
             event.preventDefault();
-            
-            var itemId = $(this).data('id');
+        
+            var itemId = $(this).data("id");
+        
+            $("#popup-box").fadeIn();
 
-            $('#popup-box').fadeIn();
-
-            $('#popup-select').change(function () {
-            let selectedValue = $(this).val();
+            $(document).off("change", "#popup-select").on("change", "#popup-select", function () {
+                let selectedValue = $(this).val();
+                sendAjaxRequest(selectedValue, itemId);
+            });
+        
+            // Trigger AJAX call for default selected value
+            let defaultSelectedValue = $("#popup-select").val();
+            sendAjaxRequest(defaultSelectedValue, itemId);
+        });
+        
+        function sendAjaxRequest(selectedValue, itemId) {
             $.ajax({
-                url: ajaxurl, 
+                url: ajaxurl,
                 type: "POST",
                 data: {
-                action: "get_selected_value",
-                value: selectedValue,
-                item_id: itemId 
-
+                    action: "get_selected_value",
+                    value: selectedValue,
+                    item_id: itemId,
                 },
                 success: function (response) {
-                $("#table-container").html(response);
+                    try {
+                        let data = JSON.parse(response);
+                        $("#table-container").html(data.html); // Insert table content
+                    } catch (e) {
+                        console.log("Parsing Error:", e);
+                    }
                 },
                 error: function (error) {
-                console.log("AJAX Error:", error);
-                }
+                    console.log("AJAX Error:", error);
+                },
             });
-            });
-        });
+        }
         
         // Close popup when clicking the close button
         $(document).on('click', '#close-popup', function() {
