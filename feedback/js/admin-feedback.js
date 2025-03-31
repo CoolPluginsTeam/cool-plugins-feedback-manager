@@ -141,10 +141,12 @@
             });
         }
         
-        // Close popup when clicking the close button
-        $(document).on('click', '#close-popup', function() {
-            $('#popup-box').fadeOut();
-                  
+        $(document).on('click', function(event) {
+
+            if($(event.target).is('#close-popup') || !$(event.target).closest('#popup-box, .more-details-link').length){
+                $('#popup-box').fadeOut();
+            }
+                        
         });
 
     });

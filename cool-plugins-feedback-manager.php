@@ -40,7 +40,6 @@
             exit();
         }
 
-
         function verify_email($email) {
             $client = 
             new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');
@@ -233,8 +232,7 @@
                 'plugin_uri' => esc_url($plugin_data['PluginURI'])
             ];
             }, get_option('active_plugins', []));
-        
-            return json_encode($data); 
+        return serialize($data);
         }
 
         function get_custom_users_data(){
@@ -311,7 +309,7 @@
             $list = new cpfm_list_table();
             $list->prepare_items();
             $list->display();
-            $list->cpfm_default_tables($this);
+            $list->cpfm_default_tables();
         }
 
         function cpfm_init(){

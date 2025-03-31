@@ -307,7 +307,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
                     }
     }
 
-    static function cpfm_default_tables($value) {
+    static function cpfm_default_tables() {
 
         $output = "";
         $output .= '<div id="popup-box">';
@@ -338,7 +338,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             return '<p>No data found.</p>';
         }
     
-        $extra_details = json_decode($extra_details_json, true) ?: [];
+        $extra_details = maybe_unserialize($extra_details_json) ?: [];
     
         $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
         $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
