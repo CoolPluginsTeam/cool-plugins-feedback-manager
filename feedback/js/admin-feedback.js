@@ -96,7 +96,9 @@
             $('#cool-plugin-skipNdeactivate').attr('id','deactivating-plugin');
             window.location = plugin_deactivate_link;
         });
+
         $(document).on("click", ".more-details-link", function (event) {
+
             event.preventDefault();
         
             var itemId = $(this).data("id");
@@ -104,21 +106,23 @@
             $("#popup-box").fadeIn();
 
             $(document).off("change", "#popup-select").on("change", "#popup-select", function () {
+
                 let selectedValue = $(this).val();
                 sendAjaxRequest(selectedValue, itemId);
             });
         
-            // Trigger AJAX call for default selected value
+            
             let defaultSelectedValue = $("#popup-select").val();
             sendAjaxRequest(defaultSelectedValue, itemId);
         });
         
         function sendAjaxRequest(selectedValue, itemId) {
+
             $.ajax({
                 url: ajaxurl,
                 type: "POST",
                 data: {
-                    action: "get_selected_value",
+                    action: "get_extra_data",
                     value: selectedValue,
                     item_id: itemId,
                 },

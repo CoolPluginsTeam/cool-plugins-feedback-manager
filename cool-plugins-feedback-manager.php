@@ -19,17 +19,18 @@
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
-            add_action('wp_ajax_get_selected_value', array($this,'get_selected_value'));
+            add_action('wp_ajax_get_extra_data', array($this,'get_extra_data'));
             add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
            
         }
 
         
-        public static function get_selected_value() {
+        public static function get_extra_data() {
+
             $value = sanitize_text_field($_POST['value']); 
             require_once CPFM_DIR . 'cpfm-display-table.php';
             
-            $html = cpfm_list_table::print_item($value, $_POST['item_id']); 
+            $html = cpfm_list_table::feedback_load_extra_data($value, $_POST['item_id']); 
         
             echo json_encode(['html' => $html]);
             

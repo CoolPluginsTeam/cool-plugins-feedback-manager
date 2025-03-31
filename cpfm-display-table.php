@@ -310,105 +310,148 @@ class cpfm_list_table extends CPFM_WP_List_Table
         echo $output;
     }
     
+    static function feedback_load_extra_data($value, $id) {
 
-
-    static function print_item($value, $id) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'cpfm_feedbacks';
-
-        $result = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id), ARRAY_A);
-
-        $extra_details = isset($result['extra_details']) ? json_decode($result['extra_details'], true) : [];
     
-        if($value === 'plugin' || $value === 'theme'){
-            $output = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-            $output .= '<thead>';
-            $output .= '<tr style="background-color: #f2f2f2;">';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">ID</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Name</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Version</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">URL</th>';
-            $output .= '</tr>';
-            $output .= '</thead>';
-            $output .= '<tbody>';
-        }else{
-            $output = '<table border="1" style="border-collapse: collapse; width: 100%;">';
-            $output .= '<thead>';
-            $output .= '<tr style="background-color: #f2f2f2;">';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Server Software</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Mysql Version</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">Php Version</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Version</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Debug</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Memory Limit</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Max Upload Size</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Permalink Structure</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Multisite</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Language</th>';
-            $output .= '<th style="padding: 10px; border: 1px solid #ddd;">WP Prefix</th>';
-            $output .= '</thead>';
-            $output .= '<tbody>';
+        // Only fetch the column we need
+        $extra_details_json = $wpdb->get_var($wpdb->prepare(
+            "SELECT extra_details FROM $table_name WHERE id = %d", 
+            $id
+        ));
+    
+        if (empty($extra_details_json)) {
+            return '<p>No data found.</p>';
         }
     
-        if ($value === 'plugin') {
-            if (empty($extra_details['active_plugins'])) {
-                return "<p>No active plugins found.</p>";
-            }
+        $extra_details = json_decode($extra_details_json, true) ?: [];
     
-            $count = 1;
-            foreach ($extra_details['active_plugins'] as $plugin) {
-                $plugin_name = esc_html($plugin['name'] ?? 'N/A');
-                $plugin_version = esc_html($plugin['version'] ?? 'N/A');
-                $plugin_url = !empty($plugin['plugin_uri']) ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' : 'N/A';
+        $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
+        $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
+        $header_style   = 'style="background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd;"';
     
-                $output .= "<tr>
-                                <td style='padding: 10px; border: 1px solid #ddd;'>$count</td>
-                                <td style='padding: 10px; border: 1px solid #ddd;'>$plugin_name</td>
-                                <td style='padding: 10px; border: 1px solid #ddd;'>$plugin_version</td>
-                                <td style='padding: 10px; border: 1px solid #ddd;'>$plugin_url</td>
-                            </tr>";
-                $count++;
-            }
-        } elseif ($value === 'theme') {
-            if (empty($extra_details['wp_theme'])) {
-                return "<p>No active theme found.</p>";
-            }
+        switch ($value) {
+
+            case 'plugin':
+                return self::render_plugins_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+                
+            case 'theme':
+                return self::render_theme_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+                
+            default:
+                return self::render_system_info_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+        }
+    }
     
-            $theme = $extra_details['wp_theme'];
-            $theme_name = esc_html($theme['name'] ?? 'N/A');
-            $theme_version = esc_html($theme['version'] ?? 'N/A');
-            $theme_url = !empty($theme['theme_uri']) ? '<a href="' . esc_url($theme['theme_uri']) . '" target="_blank">' . esc_html($theme['theme_uri']) . '</a>' : 'N/A';
-    
-            $output .= "<tr>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>1</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>$theme_name</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>$theme_version</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>$theme_url</td>
-                        </tr>";
-        } else {
-            // WordPress basic data
-            $output .= "<tr>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['server_software'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['mysql_version'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['php_version'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_version'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_debug'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_memory_limit'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_max_upload_size'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_permalink_structure'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_multisite'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_language'] ?? 'N/A') . "</td>
-                            <td style='padding: 10px; border: 1px solid #ddd;'>" . esc_html($extra_details['wp_prefix'] ?? 'N/A') . "</td>
-                        </tr>";
+    private static function render_plugins_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
+
+        if (empty($extra_details['active_plugins'])) {
+            return '<p>No active plugins found.</p>';
         }
     
-        $output .= '</tbody>';
-        $output .= '</table>';
+        $output = "<table $table_attrs>
+            <thead>
+                <tr>
+                    <th $header_style>ID</th>
+                    <th $header_style>Name</th>
+                    <th $header_style>Version</th>
+                    <th $header_style>URL</th>
+                </tr>
+            </thead>
+            <tbody>";
     
+        foreach ($extra_details['active_plugins'] as $index => $plugin) {
+
+            $count = $index + 1;
+            $plugin_name = esc_html($plugin['name'] ?? 'N/A');
+            $plugin_version = esc_html($plugin['version'] ?? 'N/A');
+            $plugin_url = !empty($plugin['plugin_uri']) 
+                ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' 
+                : 'N/A';
+    
+            $output .= "<tr>
+                <td $cell_attrs>$count</td>
+                <td $cell_attrs>$plugin_name</td>
+                <td $cell_attrs>$plugin_version</td>
+                <td $cell_attrs>$plugin_url</td>
+            </tr>";
+        }
+    
+        $output .= '</tbody></table>';
         return $output;
     }
     
+    private static function render_theme_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
 
+        if (empty($extra_details['wp_theme'])) {
+            return '<p>No active theme found.</p>';
+        }
+    
+        $theme = isset($extra_details['wp_theme']) ? $extra_details['wp_theme'] : [];
+        $theme_name = isset($theme['name']) ? esc_html($theme['name']) : 'N/A';
+        $theme_version = isset($theme['version']) ? esc_html($theme['version']) : 'N/A';
+        $theme_url = 'N/A';
+
+        $theme_url = !empty($theme['theme_uri']) 
+            ? '<a href="' . esc_url($theme['theme_uri']) . '" target="_blank">' . esc_html($theme['theme_uri']) . '</a>' 
+            : 'N/A';
+    
+        return "<table $table_attrs>
+            <thead>
+                <tr>
+                    <th $header_style>ID</th>
+                    <th $header_style>Name</th>
+                    <th $header_style>Version</th>
+                    <th $header_style>URL</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td $cell_attrs>1</td>
+                    <td $cell_attrs>$theme_name</td>
+                    <td $cell_attrs>$theme_version</td>
+                    <td $cell_attrs>$theme_url</td>
+                </tr>
+            </tbody>
+        </table>";
+    }
+    
+    private static function render_system_info_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
+
+       $system_data = [
+
+            'Server Software' => isset($extra_details['server_software']) ? $extra_details['server_software'] : 'N/A',
+            'MySQL Version' => isset($extra_details['mysql_version']) ? $extra_details['mysql_version'] : 'N/A',
+            'PHP Version' => isset($extra_details['php_version']) ? $extra_details['php_version'] : 'N/A',
+            'WP Version' => isset($extra_details['wp_version']) ? $extra_details['wp_version'] : 'N/A',
+            'WP Debug' => isset($extra_details['wp_debug']) ? $extra_details['wp_debug'] : 'N/A',
+            'WP Memory Limit' => isset($extra_details['wp_memory_limit']) ? $extra_details['wp_memory_limit'] : 'N/A',
+            'WP Max Upload Size' => isset($extra_details['wp_max_upload_size']) ? $extra_details['wp_max_upload_size'] : 'N/A',
+            'WP Permalink Structure' => isset($extra_details['wp_permalink_structure']) ? $extra_details['wp_permalink_structure'] : 'N/A',
+            'WP Multisite' => isset($extra_details['wp_multisite']) ? $extra_details['wp_multisite'] : 'N/A',
+            'WP Language' => isset($extra_details['wp_language']) ? $extra_details['wp_language'] : 'N/A',
+            'WP Prefix' => isset($extra_details['wp_prefix']) ? $extra_details['wp_prefix'] : 'N/A'
+       ];
+    
+        $output = "<table $table_attrs><thead><tr>";
+        
+        // Headers
+        foreach (array_keys($system_data) as $header) {
+            $output .= "<th $header_style>" . esc_html($header) . "</th>";
+        }
+        
+        $output .= "</tr></thead><tbody><tr>";
+        
+        // Values
+        foreach ($system_data as $value) {
+            $output .= "<td $cell_attrs>" . esc_html($value) . "</td>";
+        }
+        
+        $output .= "</tr></tbody></table>";
+        
+        return $output;
+    }
 
 
 }
