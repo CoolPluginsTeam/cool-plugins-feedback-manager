@@ -307,21 +307,6 @@ class cpfm_list_table extends CPFM_WP_List_Table
                     }
     }
 
-    static function cpfm_default_tables() {
-
-        $output = "";
-        $output .= '<div id="popup-box">';
-        $output .= '<select id="popup-select">';
-        $output .= '<option value="default" selected>Server Info</option>';
-        $output .= '<option value="plugin">Plugins Info</option>';
-        $output .= '<option value="theme">Themes Info</option>';
-        $output .= '</select>';
-        $output .= '<table id="table-container"></table>';
-        $output .= '<button id="close-popup">Close</button>';
-        $output .= '</div>';
-    
-        echo $output;
-    }
     
     static function feedback_load_extra_data($value, $id) {
 
@@ -333,12 +318,19 @@ class cpfm_list_table extends CPFM_WP_List_Table
             "SELECT extra_details FROM $table_name WHERE id = %d", 
             $id
         ));
+
+        $serve_info_json = $wpdb->get_var($wpdb->prepare(
+            "SELECT server_info FROM $table_name WHERE id = %d", 
+            $id
+        ));
     
         if (empty($extra_details_json)) {
             return '<p>No data found.</p>';
         }
-    
-        $extra_details = maybe_unserialize($extra_details_json) ?: [];
+
+        $extra_details = unserialize($extra_details_json) ?: [];  
+        
+        $serve_info = unserialize($serve_info_json) ?: [];
     
         $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
         $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
@@ -347,104 +339,89 @@ class cpfm_list_table extends CPFM_WP_List_Table
         switch ($value) {
 
             case 'plugin':
-                return self::render_plugins_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+                
+                return self::render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
                 
             case 'theme':
-                return self::render_theme_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+                return self::render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
                 
             default:
-                return self::render_system_info_table($extra_details, $table_attrs, $cell_attrs, $header_style);
+                return self::render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
         }
     }
-    
-    private static function render_plugins_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
-
-        if (empty($extra_details['active_plugins'])) {
-            return '<p>No active plugins found.</p>';
-        }
-    
-        $output = "<table $table_attrs>
+  
+         private static function render_extra_table($extra_details, $type, $table_attrs, $cell_attrs, $header_style) { 
+        
+            if ($type === 'plugin' && empty($extra_details['active_plugins'])) {
+                return '<p>No active plugins found.</p>';
+            }
+            
+            if ($type === 'theme' && empty($extra_details['wp_theme'])) {
+                return '<p>No active theme found.</p>';
+            }
+        
+            $output = "<table $table_attrs>
             <thead>
-                <tr>
-                    <th $header_style>ID</th>
-                    <th $header_style>Name</th>
-                    <th $header_style>Version</th>
-                    <th $header_style>URL</th>
-                </tr>
+            <tr>
+            <th $header_style>ID</th>
+            <th $header_style>Name</th>
+            <th $header_style>Version</th>
+            <th $header_style>URL</th>
+            </tr>
             </thead>
             <tbody>";
-    
-        foreach ($extra_details['active_plugins'] as $index => $plugin) {
-
-            $count = $index + 1;
-            $plugin_name = esc_html($plugin['name'] ?? 'N/A');
-            $plugin_version = esc_html($plugin['version'] ?? 'N/A');
-            $plugin_url = !empty($plugin['plugin_uri']) 
-                ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' 
-                : 'N/A';
-    
-            $output .= "<tr>
-                <td $cell_attrs>$count</td>
-                <td $cell_attrs>$plugin_name</td>
-                <td $cell_attrs>$plugin_version</td>
-                <td $cell_attrs>$plugin_url</td>
-            </tr>";
-        }
-    
-        $output .= '</tbody></table>';
-        return $output;
-    }
-    
-    private static function render_theme_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
-
-        if (empty($extra_details['wp_theme'])) {
-            return '<p>No active theme found.</p>';
-        }
-    
-        $theme = isset($extra_details['wp_theme']) ? $extra_details['wp_theme'] : [];
-        $theme_name = isset($theme['name']) ? esc_html($theme['name']) : 'N/A';
-        $theme_version = isset($theme['version']) ? esc_html($theme['version']) : 'N/A';
-        $theme_url = 'N/A';
-
-        $theme_url = !empty($theme['theme_uri']) 
-            ? '<a href="' . esc_url($theme['theme_uri']) . '" target="_blank">' . esc_html($theme['theme_uri']) . '</a>' 
-            : 'N/A';
-    
-        return "<table $table_attrs>
-            <thead>
-                <tr>
-                    <th $header_style>ID</th>
-                    <th $header_style>Name</th>
-                    <th $header_style>Version</th>
-                    <th $header_style>URL</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
+        
+            if ($type === 'plugin') {
+                foreach ($extra_details['active_plugins'] as $index => $plugin) {
+                    $count = $index + 1;
+                    $plugin_name = esc_html($plugin['name'] ?? 'N/A');
+                    $plugin_version = esc_html($plugin['version'] ?? 'N/A');
+                    $plugin_url = !empty($plugin['plugin_uri']) 
+                        ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' 
+                        : 'N/A';
+        
+                    $output .= "<tr>
+                        <td $cell_attrs>$count</td>
+                        <td $cell_attrs>$plugin_name</td>
+                        <td $cell_attrs>$plugin_version</td>
+                        <td $cell_attrs>$plugin_url</td>
+                    </tr>";
+                }
+            } elseif ($type === 'theme') {
+                $theme = isset($extra_details['wp_theme']) ? $extra_details['wp_theme'] : [];
+                $theme_name = isset($theme['name']) ? esc_html($theme['name']) : 'N/A';
+                $theme_version = isset($theme['version']) ? esc_html($theme['version']) : 'N/A';
+                $theme_url = !empty($theme['theme_uri']) 
+                    ? '<a href="' . esc_url($theme['theme_uri']) . '" target="_blank">' . esc_html($theme['theme_uri']) . '</a>' 
+                    : 'N/A';
+        
+                $output .= "<tr>
                     <td $cell_attrs>1</td>
                     <td $cell_attrs>$theme_name</td>
                     <td $cell_attrs>$theme_version</td>
                     <td $cell_attrs>$theme_url</td>
-                </tr>
-            </tbody>
-        </table>";
-    }
+                </tr>";
+            }
+        
+            $output .= '</tbody></table>';
+            return $output;
+        }
     
-    private static function render_system_info_table($extra_details, $table_attrs, $cell_attrs, $header_style) {
+    private static function render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style) {
 
        $system_data = [
 
-            'Server Software' => isset($extra_details['server_software']) ? $extra_details['server_software'] : 'N/A',
-            'MySQL Version' => isset($extra_details['mysql_version']) ? $extra_details['mysql_version'] : 'N/A',
-            'PHP Version' => isset($extra_details['php_version']) ? $extra_details['php_version'] : 'N/A',
-            'WP Version' => isset($extra_details['wp_version']) ? $extra_details['wp_version'] : 'N/A',
-            'WP Debug' => isset($extra_details['wp_debug']) ? $extra_details['wp_debug'] : 'N/A',
-            'WP Memory Limit' => isset($extra_details['wp_memory_limit']) ? $extra_details['wp_memory_limit'] : 'N/A',
-            'WP Max Upload Size' => isset($extra_details['wp_max_upload_size']) ? $extra_details['wp_max_upload_size'] : 'N/A',
-            'WP Permalink Structure' => isset($extra_details['wp_permalink_structure']) ? $extra_details['wp_permalink_structure'] : 'N/A',
-            'WP Multisite' => isset($extra_details['wp_multisite']) ? $extra_details['wp_multisite'] : 'N/A',
-            'WP Language' => isset($extra_details['wp_language']) ? $extra_details['wp_language'] : 'N/A',
-            'WP Prefix' => isset($extra_details['wp_prefix']) ? $extra_details['wp_prefix'] : 'N/A'
+            'Server Software' => isset($serve_info['server_software']) ? $serve_info['server_software'] : 'N/A',
+            'MySQL Version' => isset($serve_info['mysql_version']) ? $serve_info['mysql_version'] : 'N/A',
+            'PHP Version' => isset($serve_info['php_version']) ? $serve_info['php_version'] : 'N/A',
+            'WP Version' => isset($serve_info['wp_version']) ? $serve_info['wp_version'] : 'N/A',
+            'WP Debug' => isset($serve_info['wp_debug']) ? $serve_info['wp_debug'] : 'N/A',
+            'WP Memory Limit' => isset($serve_info['wp_memory_limit']) ? $serve_info['wp_memory_limit'] : 'N/A',
+            'WP Max Upload Size' => isset($serve_info['wp_max_upload_size']) ? $serve_info['wp_max_upload_size'] : 'N/A',
+            'WP Permalink Structure' => isset($serve_info['wp_permalink_structure']) ? $serve_info['wp_permalink_structure'] : 'N/A',
+            'WP Multisite' => isset($serve_info['wp_multisite']) ? $serve_info['wp_multisite'] : 'N/A',
+            'WP Language' => isset($serve_info['wp_language']) ? $serve_info['wp_language'] : 'N/A',
+            'WP Prefix' => isset($serve_info['wp_prefix']) ? $serve_info['wp_prefix'] : 'N/A'
        ];
     
         $output = "<table $table_attrs><thead><tr>";

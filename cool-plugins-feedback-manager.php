@@ -22,7 +22,6 @@
             add_action('wp_ajax_get_extra_data', array($this,'get_extra_data'));
         }
 
-        
         public static function get_extra_data() {
 
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'get_selected_value_nonce')) {
@@ -39,7 +38,7 @@
             
             wp_die();
         }
-
+        
         function verify_email($email) {
             $client = 
             new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');
@@ -200,8 +199,8 @@
 
         function get_user_info() {
             global $wpdb;
-        
-            $data = [
+
+            $server_info = [
             'server_software'        => sanitize_text_field($_SERVER['SERVER_SOFTWARE'] ?? 'N/A'),
             'mysql_version'          => sanitize_text_field($wpdb->get_var("SELECT VERSION()")),
             'php_version'            => sanitize_text_field(phpversion()),
@@ -213,26 +212,34 @@
             'wp_multisite'           => sanitize_text_field(is_multisite() ? 'Enabled' : 'Disabled'),
             'wp_language'            => sanitize_text_field(get_option('WPLANG', get_locale()) ?: get_locale()),
             'wp_prefix'              => sanitize_key($wpdb->prefix), // Sanitizing database prefix
-            'wp_theme'               => [
-                'name'      => sanitize_text_field(wp_get_theme()->get('Name')),
-                'version'   => sanitize_text_field(wp_get_theme()->get('Version')),
-                'theme_uri' => esc_url(wp_get_theme()->get('ThemeURI'))
-            ],
             ];
-        
+
+            $theme_data = [
+            'name'      => sanitize_text_field(wp_get_theme()->get('Name')),
+            'version'   => sanitize_text_field(wp_get_theme()->get('Version')),
+            'theme_uri' => esc_url(wp_get_theme()->get('ThemeURI')),
+            ];
+
             if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
             }
-            
-            $data['active_plugins'] = array_map(function ($plugin) {
-            $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . sanitize_text_field($plugin));
+
+            $plugin_data = array_map(function ($plugin) {
+            $plugin_info = get_plugin_data(WP_PLUGIN_DIR . '/' . sanitize_text_field($plugin));
             return [
-                'name'       => sanitize_text_field($plugin_data['Name']),
-                'version'    => sanitize_text_field($plugin_data['Version']),
-                'plugin_uri' => esc_url($plugin_data['PluginURI'])
+                'name'       => sanitize_text_field($plugin_info['Name']),
+                'version'    => sanitize_text_field($plugin_info['Version']),
+                'plugin_uri' => esc_url($plugin_info['PluginURI']),
             ];
             }, get_option('active_plugins', []));
-        return serialize($data);
+
+            return [
+                'server_info' => $server_info,
+                'extra_details' => [
+                    'wp_theme' => $theme_data,
+                    'active_plugins' => $plugin_data,
+                ]
+            ];
         }
 
         function get_custom_users_data(){
@@ -260,7 +267,8 @@
 
                 $DB = new cpfm_database();
                 $response = $DB->cpfm_insert_feedback( array(array(
-                    'extra_details'   => $this->get_user_info(),
+                    'server_info' => serialize($this->get_user_info()['server_info']), 
+                    'extra_details' => serialize($this->get_user_info()['extra_details']),
                     'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
                     'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
                     'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
@@ -309,7 +317,6 @@
             $list = new cpfm_list_table();
             $list->prepare_items();
             $list->display();
-            $list->cpfm_default_tables();
         }
 
         function cpfm_init(){
