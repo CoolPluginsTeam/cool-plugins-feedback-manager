@@ -278,7 +278,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
                             return $item->id;
                         break;
                         case "date":
-                            return date("F j, Y", strtotime($item->date));
+                            return date("F j, Y", strtotime($item->deactivation_date));
                         break;                     
                         case "plugin_version":
                            return $item->plugin_version;
@@ -325,8 +325,8 @@ class cpfm_list_table extends CPFM_WP_List_Table
         ));
     
         if (empty($extra_details_json)) {
-            return '<p>No data found.</p>';
-        }
+            return '<h2>No data found.</h2>';
+        }   
 
         $extra_details = unserialize($extra_details_json) ?: [];  
         

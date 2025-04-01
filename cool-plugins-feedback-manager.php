@@ -274,7 +274,6 @@
                     'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
                     'review'         => isset($review) ? sanitize_textarea_field($review) : '',
                     'domain'         => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
-                    'date'           => date('Y-m-d'),
                     'email'          => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
                 )));              
             }

@@ -128,7 +128,7 @@
                     }
            
                     setTimeout(function() {
-                        $(document).off("change", "#popup-select").on("change", "#popup-select", function () {
+                        $(document).on("change", "#popup-select", function () {
                             let selectedValue = $(this).val();
                             sendAjaxRequest(selectedValue, itemId);
                         });
