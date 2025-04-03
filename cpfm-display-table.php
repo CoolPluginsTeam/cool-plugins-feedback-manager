@@ -307,6 +307,23 @@ class cpfm_list_table extends CPFM_WP_List_Table
                     }
     }
 
+    static function get_select_html($selected_value = 'default',$id) {
+
+        $options = [
+            'default' => 'Server Info',
+            'plugin' => 'Plugins Info',
+            'theme' => 'Themes Info'
+        ];
+        
+        $select = '<select id="popup-select"  data-id="' . $id . '">';
+        foreach ($options as $value => $label) {
+            $selected = ($value == $selected_value) ? ' selected' : '';
+            $select .= "<option value='{$value}'{$selected}>{$label}</option>";
+        }
+        $select .= '</select>';
+        
+        return $select;
+    }
     
     static function cpfm_feedback_load_extra_data($value, $id) {
 
@@ -317,9 +334,8 @@ class cpfm_list_table extends CPFM_WP_List_Table
             "SELECT extra_details, server_info FROM $table_name WHERE id = %d",
             $id
         ), ARRAY_A);
-
-
-        if (empty($result)) {
+        if ($result["extra_details"] === NULL || $result["server_info"]) {
+      
             return '<h2>No data found.</h2>';
         }
 
@@ -331,16 +347,21 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
         $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
         $header_style   = 'style="background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd;"';
-    
-        switch ($value) {
 
-                case 'plugin':
-                case 'theme':
-                return self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
-                
+        switch ($value) {
+            case 'plugin':
+                return self::get_select_html('plugin',$id) . 
+                       self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
+                        
+            case 'theme':
+                return self::get_select_html('theme',$id) . 
+                       self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
+                        
             default:
-                return self::cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
+                return self::get_select_html('default',$id) . 
+                       self::cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
         }
+ 
     }
   
          private static function cpfm_render_extra_table($extra_details, $type, $table_attrs, $cell_attrs, $header_style) { 

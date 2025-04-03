@@ -165,13 +165,16 @@ thead tr {
 
 /* preloader  */
 .cpfm-loader {
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255, 0, 0, 0.3); /* Light red border */
-    border-top-color: #000000; /* Solid red top for spin effect */
-    border-radius: 50%;
-    display: inline-block;
-    animation: ecmd-spin 0.8s linear infinite;
+    display: flex;
+        flex-wrap: nowrap;
+        margin-bottom: 17px;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 0, 0, 0.3);
+        border-top-color: #000000;
+        border-radius: 50%;
+        /* display: inline-block; */
+        animation: ecmd-spin 0.8s linear infinite;
 }
 
 @keyframes ecmd-spin {

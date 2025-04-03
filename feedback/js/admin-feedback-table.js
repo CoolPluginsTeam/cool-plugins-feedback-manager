@@ -1,45 +1,133 @@
 (function($){
     $(document).ready(function(){
-        
+        let plugin_name = 'cryptocurrency-price-ticker-widget';
+		let plugin_slug = 'ccpw';
+        $target = $('#the-list').find('[data-slug="'+plugin_name+'"] span.deactivate a');
+
+        var plugin_deactivate_link = $target.attr('href');
+
+        $($target).on('click', function(event){
+            event.preventDefault();
+            $('#wpwrap').css('opacity','0.4');
+
+            $("#cool-plugins-deactivate-feedback-dialog-wrapper").animate({
+                opacity:1
+            },200,function(){
+                $("#cool-plugins-deactivate-feedback-dialog-wrapper").removeClass('hide-feedback-popup');
+                $("#cool-plugins-deactivate-feedback-dialog-wrapper").find('#cool-plugin-submitNdeactivate').addClass(plugin_slug);
+            });
+        });
+
+        $('.cool-plugins-deactivate-feedback-dialog-input').on('click',function(){
+            if($('#cool-plugins-GDPR-data-notice').is(":checked") === true && $('.cool-plugins-deactivate-feedback-dialog-input').is(':checked') === true){ 
+                $('#cool-plugin-submitNdeactivate').removeClass('button-deactivate');
+            }
+            else{
+                $('#cool-plugin-submitNdeactivate').addClass('button-deactivate');
+            }
+
+        });
+
+        $('#cool-plugins-GDPR-data-notice').on('click', function(){
+
+            if($('#cool-plugins-GDPR-data-notice').is(":checked") === true && $('.cool-plugins-deactivate-feedback-dialog-input').is(':checked') === true){ 
+                $('#cool-plugin-submitNdeactivate').removeClass('button-deactivate');
+            }
+            else{
+                $('#cool-plugin-submitNdeactivate').addClass('button-deactivate');
+            }
+        })
+
+        $('#wpwrap').on('click', function(ev){
+            if( $("#cool-plugins-deactivate-feedback-dialog-wrapper.hide-feedback-popup").length==0 ){
+                ev.preventDefault();
+                $("#cool-plugins-deactivate-feedback-dialog-wrapper").animate({
+                    opacity:0
+                },200,function(){
+                    $("#cool-plugins-deactivate-feedback-dialog-wrapper").addClass("hide-feedback-popup");
+                    $("#cool-plugins-deactivate-feedback-dialog-wrapper").find('#cool-plugin-submitNdeactivate').removeClass(plugin_slug);
+                    $('#wpwrap').css('opacity','1');
+                })
+
+            }
+        })
+
+        $(document).on('click','#cool-plugin-submitNdeactivate.'+plugin_slug+':not(".button-deactivate")', function(event){
+            let nonce = $('#_wpnonce').val();
+            let reason = $('.cool-plugins-deactivate-feedback-dialog-input:checked').val();
+            let message = '';
+            console.log('textarea[name="reason_'+reason+'"]');
+            if( $('textarea[name="reason_'+reason+'"]').length>0 ){
+                if( $('textarea[name="reason_'+reason+'"]').val() == '' ){
+                    alert('Please provide some extra information!');
+                    return;
+                }else{
+                    message=$('textarea[name="reason_'+reason+'"]').val();
+                }
+            }
+
+            $.ajax({
+                url:ajaxurl,
+                method:'POST',
+                data:{
+                    'action':plugin_slug+'_submit_deactivation_response',
+                    '_wpnonce':nonce,
+                    'reason':reason,
+                    'message':message,
+                },
+                beforeSend:function(data){
+                    $('#cool-plugin-submitNdeactivate').text('Deactivating...');
+                    $('#cool-plugin-submitNdeactivate').attr('id','deactivating-plugin');
+                    $('#cool-plugins-loader-wrapper').show();
+                    $('#cool-plugin-skipNdeactivate').remove();
+                },
+                success:function(res){
+                    $('#cool-plugins-loader-wrapper').hide();
+                    window.location = plugin_deactivate_link;
+                    $('#deactivating-plugin').text('Deactivated');
+                }
+            })
+
+        });
+
+        $(document).on('click', '#cool-plugin-skipNdeactivate', function(){
+            $('#cool-plugin-submitNdeactivate').remove();
+            $('#cool-plugin-skipNdeactivate').addClass('button-deactivate');
+            $('#cool-plugin-skipNdeactivate').attr('id','deactivating-plugin');
+            window.location = plugin_deactivate_link;
+        });
+
         $(document).on("click", ".more-details-link", function (event) {
+
             event.preventDefault();
         
             var itemId = $(this).data("id");
-        
-                  
-                   if ($("#popup-box").length === 0) {
-                       $("body").append(`<div id="popup-box" class="popup-container"> <div class="popup-content">
-                         <select id="popup-select">
-                              <option value="default" selected>Server Info</option>
-                                <option value="plugin">Plugins Info</option>
-                             <option value="theme">Themes Info</option>
-                          </select>
-                
-                           <div id="table-wrapper">
-                              <table id="table-container">
-                                 <tr>
-                                     <td id="loader-cell"  style=" text-align: center;">
-                                        <div class="cpfm-loader"></div>
-                                   </td>
-                                </tr>
-                                </table>
-                            </div>
-        
-                          <button id="close-popup">Close</button>
-                           </div></div>`); 
-                    } else {
-                     $("#popup-box").show();
-                    }
+            
+            if ($("#popup-box").length === 0) {
 
-                        $(document).off("change").on("change", "#popup-select", function () {
-                            let selectedValue = $(this).val();
-                            sendAjaxRequest(selectedValue, itemId);
-                        });
-                        let defaultSelectedValue = $("#popup-select").val();
-                        sendAjaxRequest(defaultSelectedValue, itemId);
+                $("body").append(`<div id="popup-box" class="popup-container"> <div class="popup-content">
+                <div class="cpfm-loader"></div>
+                </div> <button id="close-popup">Close</button></div>`);
+
+            } else {
+
+                $("#popup-box").show();
+            }
+
+            let defaultSelectedValue = $("#popup-select").val();
+            sendAjaxRequest(defaultSelectedValue, itemId);
+
+       
+                    
         });     
-        
+        $(document).on("change", "#popup-select", function () {
+            var itemId = $(this).data("id");
+            console.log(itemId);
+            let selectedValue = $(this).val();
+            sendAjaxRequest(selectedValue, itemId);
+        });
         function sendAjaxRequest(selectedValue, itemId) {
+
             $.ajax({
                 url: ajaxurl,
                 type: "POST",
@@ -51,9 +139,9 @@
                 },
                 success: function (response) {
 
-                        let data = JSON.parse(response);
-                        $('#table-container').html('');
-                        $("#table-container").html(data.html);
+                    let data = JSON.parse(response);
+                    $('#table-container').html('');
+                    $(".popup-content").html(data.html);
                   
                 },
                 error: function (error) {
@@ -70,6 +158,8 @@
                 });
             }            
         });
+
         
+
     });
 })(jQuery);
