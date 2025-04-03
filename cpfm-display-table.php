@@ -307,7 +307,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
                     }
     }
 
-    static function get_select_html($selected_value = 'default',$id) {
+    static function get_select_html($id,$selected_value = 'default') {
 
         $options = [
             'default' => 'Server Info',
@@ -334,8 +334,8 @@ class cpfm_list_table extends CPFM_WP_List_Table
             "SELECT extra_details, server_info FROM $table_name WHERE id = %d",
             $id
         ), ARRAY_A);
-        if ($result["extra_details"] === NULL || $result["server_info"]) {
-      
+
+        if ($result["extra_details"] === NULL || $result["server_info"] === NULL) {
             return '<h2>No data found.</h2>';
         }
 
@@ -350,15 +350,15 @@ class cpfm_list_table extends CPFM_WP_List_Table
 
         switch ($value) {
             case 'plugin':
-                return self::get_select_html('plugin',$id) . 
+                return self::get_select_html($id,'plugin') . 
                        self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
                         
             case 'theme':
-                return self::get_select_html('theme',$id) . 
+                return self::get_select_html($id,'theme') . 
                        self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
                         
             default:
-                return self::get_select_html('default',$id) . 
+                return self::get_select_html($id,'default') . 
                        self::cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
         }
  
