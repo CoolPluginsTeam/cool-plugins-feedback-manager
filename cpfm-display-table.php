@@ -335,10 +335,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $id
         ), ARRAY_A);
 
-        if ($result["extra_details"] === NULL || $result["server_info"] === NULL) {
+        if ($result["extra_details"] === NULL || empty($result["extra_details"]) || $result["server_info"] === NULL || empty($result["server_info"])) {
             return '<h2>No data found.</h2>';
         }
-
         $extra_details = unserialize(stripslashes($result['extra_details'])) ?: [];
         $serve_info = unserialize(stripslashes($result['server_info'])) ?: [];
        
