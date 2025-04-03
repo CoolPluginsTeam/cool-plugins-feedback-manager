@@ -29,7 +29,8 @@
                 wp_die();
             }
 
-            $value = sanitize_text_field($_POST['value']); 
+            $value = isset($_POST['value'])?sanitize_text_field($_POST['value']):'default'; 
+            
             require_once CPFM_DIR . 'cpfm-display-table.php';
             
             $html = cpfm_list_table::cpfm_feedback_load_extra_data($value, $_POST['item_id']); 
