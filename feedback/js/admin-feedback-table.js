@@ -26,7 +26,6 @@
         });     
         $(document).on("change", "#popup-select", function () {
             var itemId = $(this).data("id");
-            console.log(itemId);
             let selectedValue = $(this).val();
             sendAjaxRequest(selectedValue, itemId);
         });
