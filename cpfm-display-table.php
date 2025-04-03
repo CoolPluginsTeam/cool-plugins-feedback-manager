@@ -377,7 +377,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $output = "<table $table_attrs>
             <thead>
             <tr>
-            <th $header_style>ID</th>
+            <th $header_style>SR. No.</th>
             <th $header_style>Name</th>
             <th $header_style>Version</th>
             <th $header_style>URL</th>
