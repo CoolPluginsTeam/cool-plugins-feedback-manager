@@ -320,19 +320,19 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			return; // Table already exists, no need to create it
 		}
 
-		$sql = "CREATE TABLE " . $this->table_name . " (
-			`id` bigint(20) NOT NULL AUTO_INCREMENT,
-			`plugin_version` varchar(20) NOT NULL,
-			`plugin_name` varchar(250) NOT NULL,
-			`reason` varchar(250) NOT NULL,
-			`review` varchar(250) NOT NULL,
-			`domain` varchar(250) NOT NULL,
-			`email` varchar(250),
-			`extra_details` TEXT,
-			`server_info` TEXT,
-			`deactivation_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			PRIMARY KEY (id)
-		) CHARACTER SET utf8 COLLATE utf8_general_ci;";
+		$sql = "CREATE TABLE IF NOT EXISTS" . $this->table_name . " (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+            `plugin_version` varchar(20) NOT NULL,
+            `plugin_name` varchar(250) NOT NULL,
+            `reason` varchar(250) NOT NULL,
+            `review` varchar(250) NOT NULL,
+            `domain` varchar(250) NOT NULL,
+            `email` varchar(250),
+            `extra_details` TEXT,
+            `server_info` TEXT,
+            `deactivation_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id)
+        ) CHARACTER SET utf8 COLLATE utf8_general_ci;";
 
 		dbDelta($sql);
 

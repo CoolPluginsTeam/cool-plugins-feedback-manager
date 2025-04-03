@@ -7,7 +7,7 @@ class cp_feedback{
 	private $plugin_version = Crypto_Currency_Price_Widget_VERSION;
 	private $plugin_name = 'Cryptocurrency Widgets';
 	private $plugin_slug = 'ccpw';
-	private $feedback_url = 'http://feedback.coolplugins.net/wp-json/coolplugins-feedback/v1/feedbacktest';
+	private $feedback_url = 'http://localhost:10004/wp-json/coolplugins-feedback/v1/feedbacktest';
 
     /*
     |-----------------------------------------------------------------|

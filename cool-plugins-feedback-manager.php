@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Cool Plugins Feedback Manager
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Cool Plugins Team
  * Description: This plugin manage all feedback data received from users who deactivate 'Cool Plugins'.
  */
@@ -19,10 +19,10 @@
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
-            add_action('wp_ajax_get_extra_data', array($this,'get_extra_data'));
+            add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
         }
 
-        public static function get_extra_data() {
+        public static function cpfm_get_extra_data() {
 
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'get_selected_value_nonce')) {
                 wp_send_json_error(['message' => 'Nonce verification failed.']);
@@ -32,7 +32,7 @@
             $value = sanitize_text_field($_POST['value']); 
             require_once CPFM_DIR . 'cpfm-display-table.php';
             
-            $html = cpfm_list_table::feedback_load_extra_data($value, $_POST['item_id']); 
+            $html = cpfm_list_table::cpfm_feedback_load_extra_data($value, $_POST['item_id']); 
         
             echo json_encode(['html' => $html]);
             
@@ -197,51 +197,6 @@
             ));
         }
 
-        function get_user_info() {
-            global $wpdb;
-
-            $server_info = [
-            'server_software'        => sanitize_text_field($_SERVER['SERVER_SOFTWARE'] ?? 'N/A'),
-            'mysql_version'          => sanitize_text_field($wpdb->get_var("SELECT VERSION()")),
-            'php_version'            => sanitize_text_field(phpversion()),
-            'wp_version'             => sanitize_text_field(get_bloginfo('version')),
-            'wp_debug'               => sanitize_text_field(defined('WP_DEBUG') && WP_DEBUG ? 'Enabled' : 'Disabled'),
-            'wp_memory_limit'        => sanitize_text_field(ini_get('memory_limit')),
-            'wp_max_upload_size'     => sanitize_text_field(ini_get('upload_max_filesize')),
-            'wp_permalink_structure' => sanitize_text_field(get_option('permalink_structure', 'Default')),
-            'wp_multisite'           => sanitize_text_field(is_multisite() ? 'Enabled' : 'Disabled'),
-            'wp_language'            => sanitize_text_field(get_option('WPLANG', get_locale()) ?: get_locale()),
-            'wp_prefix'              => sanitize_key($wpdb->prefix), // Sanitizing database prefix
-            ];
-
-            $theme_data = [
-            'name'      => sanitize_text_field(wp_get_theme()->get('Name')),
-            'version'   => sanitize_text_field(wp_get_theme()->get('Version')),
-            'theme_uri' => esc_url(wp_get_theme()->get('ThemeURI')),
-            ];
-
-            if (!function_exists('get_plugins')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-            }
-
-            $plugin_data = array_map(function ($plugin) {
-            $plugin_info = get_plugin_data(WP_PLUGIN_DIR . '/' . sanitize_text_field($plugin));
-            return [
-                'name'       => sanitize_text_field($plugin_info['Name']),
-                'version'    => sanitize_text_field($plugin_info['Version']),
-                'plugin_uri' => esc_url($plugin_info['PluginURI']),
-            ];
-            }, get_option('active_plugins', []));
-
-            return [
-                'server_info' => $server_info,
-                'extra_details' => [
-                    'wp_theme' => $theme_data,
-                    'active_plugins' => $plugin_data,
-                ]
-            ];
-        }
-
         function get_custom_users_data(){
             GLOBAL $wpdb;
             $response = false;
@@ -267,8 +222,8 @@
 
                 $DB = new cpfm_database();
                 $response = $DB->cpfm_insert_feedback( array(array(
-                    'server_info' => serialize($this->get_user_info()['server_info']), 
-                    'extra_details' => serialize($this->get_user_info()['extra_details']),
+                   'server_info' =>isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
+                    'extra_details' =>isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
                     'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
                     'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
                     'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
@@ -277,6 +232,7 @@
                     'email'          => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
                 )));              
             }
+            
             
             die(json_encode($response));
         }

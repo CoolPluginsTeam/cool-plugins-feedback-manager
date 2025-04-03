@@ -26,7 +26,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
     
     function enqueue_feedback_script() {
         
-        wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback.js', array('jquery'), '1.0.0', true );
+        wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback-table.js', array('jquery'), '1.0.0', true );
 
         wp_localize_script('feedback-script', 'ajax_object', array(
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -308,29 +308,25 @@ class cpfm_list_table extends CPFM_WP_List_Table
     }
 
     
-    static function feedback_load_extra_data($value, $id) {
+    static function cpfm_feedback_load_extra_data($value, $id) {
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'cpfm_feedbacks';
-    
-        // Only fetch the column we need
-        $extra_details_json = $wpdb->get_var($wpdb->prepare(
-            "SELECT extra_details FROM $table_name WHERE id = %d", 
-            $id
-        ));
+        $table_name = $wpdb->prefix . 'cpfm_feedbacks';   
 
-        $serve_info_json = $wpdb->get_var($wpdb->prepare(
-            "SELECT server_info FROM $table_name WHERE id = %d", 
+        $result = $wpdb->get_row($wpdb->prepare(
+            "SELECT extra_details, server_info FROM $table_name WHERE id = %d",
             $id
-        ));
-    
-        if (empty($extra_details_json)) {
+        ), ARRAY_A);
+
+
+        if (empty($result)) {
             return '<h2>No data found.</h2>';
-        }   
+        }
 
-        $extra_details = unserialize($extra_details_json) ?: [];  
-        
-        $serve_info = unserialize($serve_info_json) ?: [];
+        $extra_details = unserialize(stripslashes($result['extra_details'])) ?: [];
+        $serve_info = unserialize(stripslashes($result['server_info'])) ?: [];
+       
+
     
         $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
         $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
@@ -338,19 +334,16 @@ class cpfm_list_table extends CPFM_WP_List_Table
     
         switch ($value) {
 
-            case 'plugin':
-                
-                return self::render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
-                
-            case 'theme':
-                return self::render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
+                case 'plugin':
+                case 'theme':
+                return self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
                 
             default:
-                return self::render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
+                return self::cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
         }
     }
   
-         private static function render_extra_table($extra_details, $type, $table_attrs, $cell_attrs, $header_style) { 
+         private static function cpfm_render_extra_table($extra_details, $type, $table_attrs, $cell_attrs, $header_style) { 
         
             if ($type === 'plugin' && empty($extra_details['active_plugins'])) {
                 return '<p>No active plugins found.</p>';
@@ -407,7 +400,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             return $output;
         }
     
-    private static function render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style) {
+    private static function cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style) {
 
        $system_data = [
 
