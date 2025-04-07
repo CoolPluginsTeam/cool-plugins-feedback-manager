@@ -221,12 +221,17 @@
                 }
             }   
 
+
+
+           
+
                 $DB = new cpfm_database();
                 $response = $DB->cpfm_insert_feedback( array(array(
                    'server_info' =>isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
                     'extra_details' =>isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
                     'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
                     'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
+                    'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
                     'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
                     'review'         => isset($review) ? sanitize_textarea_field($review) : '',
                     'domain'         => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',

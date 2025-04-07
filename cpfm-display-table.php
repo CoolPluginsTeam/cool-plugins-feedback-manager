@@ -76,15 +76,64 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         ?>
                     </select>
                     <button class="button primary" id="cpfm_filter">Filter</button>
+                    <label for="export_data_date_From">From :</label>
+                    <input type="date" name="export_data_date_From" >
+                    <label for="export_data_date_to" >To :</label>
+                    <input type="date" name="export_data_date_to" >
+                    <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
                     <?php
+                  $this->cpfm_export_data();
                 }
+         
                 ?>  
             <?php
-        }
+    
+    }
         if ($position == "bottom") {
             echo "<em>Powered by Cool Plugins Team.</em> </form>";
         }
     }
+
+        public function cpfm_export_data()
+        {
+            // var_dump($_REQUEST['export_data']);die();
+            $this->prepare_items();
+            $result = $this->items;
+            
+            if (isset($_REQUEST['export_data'])) {
+                // var_dump('ghfgfghfghghfhgfghfgghfgy');
+              
+                if (!empty($result)) {
+                    // Send headers to initiate file download
+                    header('Content-Type: text/csv');
+                    header('Content-Disposition: attachment; filename="feedback_export.csv"');
+                    header('Pragma: no-cache');
+                    header('Expires: 0');
+        
+                    // Open output stream
+                    $output = fopen('php://output', 'w');
+                    // var_dump($result);die();
+                    // Output CSV headers
+                    fputcsv($output, array_keys((array)$result[0]));
+        
+                    // Output CSV rows
+                    foreach ($result as $row) {
+                        fputcsv($output, (array)$row);
+                    }
+                    var_dump($output);die();
+                    fclose($output);
+                    exit;
+                } else {
+                    header('Content-Type: text/plain');
+                    echo 'No data found.';
+                    exit;
+                }
+            }
+        }
+        
+
+
+    
 
     /*
     |----------------------------------------------------------------------|
@@ -98,6 +147,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             // 'cb' => '<input type="checkbox"/>',
             'id' => __('Sr.'),
             'date' => __('Date'),
+            'plugin_initial'=> __('Plugin Initial'),
             'plugin_version' => __('Plugin Version'),
             'plugin_name' => __('Plugin Name'),
             'reason' => __('Reason'),
@@ -201,8 +251,19 @@ class cpfm_list_table extends CPFM_WP_List_Table
 
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
-            $user_filter = str_replace('-',' ',$user_filter);
-            $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '"';
+            // $user_filter = str_replace('-',' ',$user_filter);
+            $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '%"';
+        }
+
+        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        if (!empty($filter_from_date) && !empty($filter_to_date)) {
+            if(empty($user_filter) ){
+                $query .= ' WHERE ';
+            }else{
+                $query .= ' AND ';
+            }
+            $query .= " deactivation_date BETWEEN '" . esc_sql($filter_from_date) . "' AND '" . esc_sql($filter_to_date) . " 23:59:59'";
         }
 
         // Ordering parameters
@@ -279,6 +340,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         break;
                         case "date":
                             return date("F j, Y", strtotime($item->deactivation_date));
+                        break;  
+                        case "plugin_initial":
+                            return $item->plugin_initial;
                         break;                     
                         case "plugin_version":
                            return $item->plugin_version;
