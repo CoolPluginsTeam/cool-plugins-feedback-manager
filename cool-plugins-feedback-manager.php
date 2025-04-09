@@ -26,16 +26,18 @@
 
 
         public function cpfm_download_csv() {
-            require_once CPFM_DIR . 'cpfm-display-table.php';
-            $list = new cpfm_list_table();
-           
-            $data =  $list->cpfm_fetch_export_data();
+
             $is_export = isset($_REQUEST['export_data']) && $_REQUEST['export_data'] === 'Export Data';
-            
+
             if (!$is_export) {
                 return; 
             }
 
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            
+            $list = new cpfm_list_table();
+            $data =  $list->cpfm_fetch_export_data($is_export);
+            
             if (empty($data)) {
                 wp_die('No data to export.');
             }

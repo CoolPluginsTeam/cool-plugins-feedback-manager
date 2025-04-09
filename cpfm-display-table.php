@@ -183,34 +183,44 @@ class cpfm_list_table extends CPFM_WP_List_Table
         return $status_links;
     }
 
-    function cpfm_fetch_export_data() {
-        $is_export = isset($_REQUEST['export_data']) && $_REQUEST['export_data'] === 'Export Data';
-
-        if ($is_export) {
-            
+    function cpfm_fetch_export_data($is_export) {
+        
+        if (!$is_export) {
+            return;
+        }
+    
         global $wpdb;
+        $table_name = $wpdb->base_prefix . 'cpfm_feedbacks';
         $selected_columns = 'id, plugin_version, plugin_name, plugin_initial, reason, review, domain, email, deactivation_date';
-        $query = "SELECT $selected_columns FROM {$wpdb->base_prefix}cpfm_feedbacks";
+        
+        // Prepare query parts
+        $query = "SELECT $selected_columns FROM $table_name";
         $conditions = [];
-
+        $params = [];
+    
+        // Apply plugin name filter if set
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
-            $conditions[] = $wpdb->prepare('plugin_name LIKE %s', '%' . $wpdb->esc_like($user_filter) . '%');
+            $conditions[] = 'plugin_name LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($user_filter) . '%';
         }
-
-        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
-        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
-        if (!empty($filter_from_date) && !empty($filter_to_date)) {
-            $conditions[] = $wpdb->prepare("deactivation_date BETWEEN %s AND %s", $filter_from_date, $filter_to_date . " 23:59:59");
+    
+        // Apply date range filter if both dates are set
+        $from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        if (!empty($from_date) && !empty($to_date)) {
+            $conditions[] = 'deactivation_date BETWEEN %s AND %s';
+            $params[] = $from_date;
+            $params[] = $to_date . ' 23:59:59';
         }
-
+    
+        // Add conditions to query if any exist
         if (!empty($conditions)) {
             $query .= ' WHERE ' . implode(' AND ', $conditions);
+            $query = $wpdb->prepare($query, $params);
         }
-
-        $results = $wpdb->get_results($query, ARRAY_A);
-        return $results;
-    }
+    
+        return $wpdb->get_results($query, ARRAY_A);
     }
 
     /*
