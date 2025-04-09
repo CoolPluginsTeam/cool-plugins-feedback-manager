@@ -75,14 +75,13 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         }
                         ?>
                     </select>
-                    <button class="button primary" id="cpfm_filter">Filter</button>
-                    <label for="export_data_date_From">From :</label>
-                    <input type="date" name="export_data_date_From" >
+                    <button class="button primary" id="cpfm_filter" >Filter</button>
+                    <label for="export_data_date_From" >From :</label>
+                    <input type="date" name="export_data_date_From"  >
                     <label for="export_data_date_to" >To :</label>
                     <input type="date" name="export_data_date_to" >
                     <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
                     <?php
-                  $this->cpfm_export_data();
                 }
          
                 ?>  
@@ -93,47 +92,6 @@ class cpfm_list_table extends CPFM_WP_List_Table
             echo "<em>Powered by Cool Plugins Team.</em> </form>";
         }
     }
-
-        public function cpfm_export_data()
-        {
-            // var_dump($_REQUEST['export_data']);die();
-            $this->prepare_items();
-            $result = $this->items;
-            
-            if (isset($_REQUEST['export_data'])) {
-                // var_dump('ghfgfghfghghfhgfghfgghfgy');
-              
-                if (!empty($result)) {
-                    // Send headers to initiate file download
-                    header('Content-Type: text/csv');
-                    header('Content-Disposition: attachment; filename="feedback_export.csv"');
-                    header('Pragma: no-cache');
-                    header('Expires: 0');
-        
-                    // Open output stream
-                    $output = fopen('php://output', 'w');
-                    // var_dump($result);die();
-                    // Output CSV headers
-                    fputcsv($output, array_keys((array)$result[0]));
-        
-                    // Output CSV rows
-                    foreach ($result as $row) {
-                        fputcsv($output, (array)$row);
-                    }
-                    var_dump($output);die();
-                    fclose($output);
-                    exit;
-                } else {
-                    header('Content-Type: text/plain');
-                    echo 'No data found.';
-                    exit;
-                }
-            }
-        }
-        
-
-
-    
 
     /*
     |----------------------------------------------------------------------|
@@ -225,6 +183,36 @@ class cpfm_list_table extends CPFM_WP_List_Table
         return $status_links;
     }
 
+    function cpfm_fetch_export_data() {
+        $is_export = isset($_REQUEST['export_data']) && $_REQUEST['export_data'] === 'Export Data';
+
+        if ($is_export) {
+            
+        global $wpdb;
+        $selected_columns = 'id, plugin_version, plugin_name, plugin_initial, reason, review, domain, email, deactivation_date';
+        $query = "SELECT $selected_columns FROM {$wpdb->base_prefix}cpfm_feedbacks";
+        $conditions = [];
+
+        $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
+        if (!empty($user_filter)) {
+            $conditions[] = $wpdb->prepare('plugin_name LIKE %s', '%' . $wpdb->esc_like($user_filter) . '%');
+        }
+
+        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        if (!empty($filter_from_date) && !empty($filter_to_date)) {
+            $conditions[] = $wpdb->prepare("deactivation_date BETWEEN %s AND %s", $filter_from_date, $filter_to_date . " 23:59:59");
+        }
+
+        if (!empty($conditions)) {
+            $query .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        $results = $wpdb->get_results($query, ARRAY_A);
+        return $results;
+    }
+    }
+
     /*
     |---------------------------------------------------------------------------------------|
     | Prepare the table with different parameters, pagination, columns and table elements   |
@@ -307,6 +295,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
         // Get feedback data from database
         $this->items = $wpdb->get_results($query);
     }
+
 
     /*
     |-----------------------------------------------------|

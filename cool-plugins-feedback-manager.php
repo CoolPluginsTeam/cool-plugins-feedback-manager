@@ -20,8 +20,39 @@
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
+            add_action('admin_init', array($this, 'cpfm_download_csv') );
+
         }
 
+
+        public function cpfm_download_csv() {
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            $list = new cpfm_list_table();
+           
+            $data =  $list->cpfm_fetch_export_data();
+            $is_export = isset($_REQUEST['export_data']) && $_REQUEST['export_data'] === 'Export Data';
+            
+            if (!$is_export) {
+                return; 
+            }
+
+            if (empty($data)) {
+                wp_die('No data to export.');
+            }
+
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="exported-data.csv"');
+            $output = fopen('php://output', 'w');
+            fputcsv($output, array_keys($data[0]));
+
+            foreach ($data as $row) {
+                fputcsv($output, $row);
+            }
+
+            fclose($output);
+            exit; 
+        }
+    
         public static function cpfm_get_extra_data() {
 
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'get_selected_value_nonce')) {
