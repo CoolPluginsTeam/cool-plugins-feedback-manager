@@ -341,7 +341,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
                             return date("F j, Y", strtotime($item->deactivation_date));
                         break;  
                         case "plugin_initial":
-                            return $item->plugin_initial;
+                            return !empty($item->plugin_initial)?$item->plugin_initial:'N/A';
                         break;                     
                         case "plugin_version":
                            return $item->plugin_version;
