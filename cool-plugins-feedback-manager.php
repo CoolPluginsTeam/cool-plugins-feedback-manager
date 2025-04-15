@@ -33,10 +33,10 @@
             register_rest_route('coolplugins-feedback/v1', 'site-info', array(
 
                 'methods' => 'POST', 
-                'callback' => array($this,'cpfm_sit_handle_site_info_request'),
+                'callback' => array($this,'cpfm_site_info_request'),
             ));
         }
-        function cpfm_sit_handle_site_info_request(WP_REST_Request $request) {
+        function cpfm_site_info_request(WP_REST_Request $request) {
 
             global $wpdb;
             $table_name     = $wpdb->prefix . 'cpfm_site_info';
