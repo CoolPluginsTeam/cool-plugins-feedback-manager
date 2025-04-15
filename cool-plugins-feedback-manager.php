@@ -10,7 +10,7 @@
  define("CPFM_DIR", plugin_dir_path(CPFM_FILE));
 
  class Cool_Plugins_Feedback_Manager{
-
+        private $cpfm_current_view;
         function __construct(){
             require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
             require_once CPFM_DIR . 'cpfm-feedback-db.php';
@@ -21,10 +21,97 @@
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
             add_action('admin_init', array($this, 'cpfm_download_csv') );
+            add_action('rest_api_init', array($this,'cpfm_site_register_rest_routes'));
 
         }
 
+        /**
+        * Register REST API routes for Site Info Tracker
+        */
+        function cpfm_site_register_rest_routes() {
 
+            register_rest_route('coolplugins-feedback/v1', 'site-info', array(
+
+                'methods' => 'POST', 
+                'callback' => array($this,'cpfm_sit_handle_site_info_request'),
+            ));
+        }
+        function cpfm_sit_handle_site_info_request(WP_REST_Request $request) {
+
+            global $wpdb;
+            $table_name     = $wpdb->prefix . 'cpfm_site_info';
+            $current_date   = current_time('mysql');
+            $plugin_version = sanitize_text_field($request->get_param('plugin_version'));
+            $plugin_name    = sanitize_text_field($request->get_param('plugin_name'));
+            $plugin_initial = sanitize_text_field($request->get_param('plugin_initial'));
+            $email          = sanitize_email($request->get_param('email'));
+            $extra_details  = maybe_serialize($request->get_param('extra_details'));
+            $server_info    = maybe_serialize($_SERVER);
+            $site_id        = sanitize_text_field($request->get_param('site_id'));
+            $site_url       = sanitize_text_field($request->get_param('site_url'));
+
+            $site_info = array(
+                'site_id'           => $site_id,
+                'plugin_version'    => !empty($plugin_version) ? $plugin_version : '1.0.0',
+                'plugin_name'       => !empty($plugin_name) ? $plugin_name : 'Site Info Tracker',
+                'plugin_initial'    => !empty($plugin_initial) ? $plugin_initial : '1.0',
+                'domain'            => $site_url,
+                'email'             => $email,
+                'extra_details'     => $extra_details,
+                'server_info'       => $server_info,
+                'update_date'       => $current_date,
+                'created_date'      => $current_date
+            );
+        
+            // Check if record exists using prepared statement
+            $existing_id = $wpdb->get_var(
+                $wpdb->prepare("SELECT id FROM $table_name WHERE site_id = %s", $site_id)
+            );
+            
+            if ($existing_id) {
+                    // Update existing record with prepared statement
+                    unset($site_info['created_date']);
+                    
+                    $set_clause = implode(', ', array_map(function($key) {
+                        return "$key = %s";
+                    }, array_keys($site_info)));
+                    
+                    $query = $wpdb->prepare(
+                        "UPDATE $table_name SET $set_clause WHERE id = %d",
+                        array_merge(array_values($site_info), [$existing_id])
+                    );
+                    
+                    $result = $wpdb->query($query);
+            } else {
+                  
+                    $columns = implode(', ', array_keys($site_info));
+                    $placeholders = implode(', ', array_fill(0, count($site_info), '%s'));
+                    
+                    $query = $wpdb->prepare(
+                        "INSERT INTO $table_name ($columns) VALUES ($placeholders)",
+                        array_values($site_info)
+                    );
+                    $result = $wpdb->query($query);
+            }
+
+            if (false === $result) {
+
+                return new WP_Error(
+                    'something_went_wrong', 
+                    'Something Went Wrong',
+                    array(
+                        'status' => 500,
+                        
+                    )
+                );
+            }
+
+            return new WP_REST_Response(array(
+                'status' => 'success',
+            ), 200);
+            
+        }
+      
         public function cpfm_download_csv() {
 
             $is_export = isset($_REQUEST['export_data']) && $_REQUEST['export_data'] === 'Export Data';
@@ -34,10 +121,17 @@
             }
 
             require_once CPFM_DIR . 'cpfm-display-table.php';
-            
-            $list = new cpfm_list_table();
-            $data =  $list->cpfm_fetch_export_data($is_export);
-            
+
+            $current_page = isset($_REQUEST['page']) ? sanitize_text_field($_REQUEST['page']) : '';
+            $view = ($current_page === 'cpfm-plugin-insights') ? 'insights' : 'main';
+        
+            $args = [
+                'view' => $view
+            ];
+        
+            $list = new cpfm_list_table($args);
+            $data = $list->cpfm_fetch_export_data($is_export);
+          
             if (empty($data)) {
                 wp_die('No data to export.');
             }
@@ -63,10 +157,12 @@
             }
 
             $value = isset($_POST['value'])?sanitize_text_field($_POST['value']):'default'; 
-            
+            $referer = wp_get_referer();
+            $view = (strpos($referer, 'cpfm-plugin-insights') !== false) ? 'insights' : 'main';
+           
             require_once CPFM_DIR . 'cpfm-display-table.php';
             
-            $html = cpfm_list_table::cpfm_feedback_load_extra_data($value, $_POST['item_id']); 
+            $html = cpfm_list_table::cpfm_feedback_load_extra_data($value, $_POST['item_id'],$view); 
         
             echo json_encode(['html' => $html]);
             
@@ -280,12 +376,41 @@
 
             $hook = add_menu_page('Cool Plugins Feedback Data', 'Cool Plugins Feedback Manager', 'manage_options', 'cpfm', array($this,'CPFM_feedback_page'), '', 7);
             add_action( "load-".$hook, array( $this, 'cpfm_add_options' ) ); 
-        }
+           
+            $submenu_hook = add_submenu_page(
+                'cpfm',                                
+                'Plugin Insights',                       
+                'Plugin Insights',                   
+                'manage_options',                    
+                'cpfm-plugin-insights',                      
+                array($this, 'cpfm_all_feedbacks_page') 
+            );
 
+            add_action("load-".$submenu_hook, array($this, 'cpfm_add_submenu_options'));
+         
+        }
+        public function cpfm_add_submenu_options() {
+
+            $option = 'per_page';
+            $this->cpfm_current_view = 'insights';
+            
+            $args = array(
+                'label' => 'Result per page',
+                'default' => 10,
+                'option' => 'results_per_page'
+            );
+          
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            add_screen_option( $option, $args );
+           
+            new cpfm_list_table;
+           
+        }
+        
         function cpfm_add_options(){
 
             $option = 'per_page';
-     
+            $this->cpfm_current_view = 'main';
             $args = array(
                 'label' => 'Result per page',
                 'default' => 10,
@@ -293,7 +418,7 @@
             );
              require_once CPFM_DIR . 'cpfm-display-table.php';
             add_screen_option( $option, $args );
-            // create columns field for screen options
+         
             new cpfm_list_table;
 
         }
@@ -308,15 +433,36 @@
         function cpfm_feedback_page(){
 
             require_once CPFM_DIR . 'cpfm-display-table.php';
-            $list = new cpfm_list_table();
+          
+            $args = [
+                'view' => isset($this->cpfm_current_view) ? $this->cpfm_current_view : 'main'
+            ];
+        
+            $list = new cpfm_list_table($args);
             $list->prepare_items();
             $list->display();
+           
+        }
+
+        function cpfm_all_feedbacks_page(){
+
+            require_once CPFM_DIR . 'cpfm-display-table.php';
+            
+            $args = [
+                'view' => isset($this->cpfm_current_view) ? $this->cpfm_current_view : 'insights'
+            ];
+        
+            $list = new cpfm_list_table($args);
+            $list->prepare_items();
+            $list->display();
+        
         }
 
         function cpfm_init(){
 
             $database = new cpfm_database();
             $database->create_table();
+            $database->create_table_site_info();
 
         }
 

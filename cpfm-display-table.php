@@ -11,7 +11,8 @@
 
 class cpfm_list_table extends CPFM_WP_List_Table
 {
-    public function __construct()
+    private $view;
+    public function __construct($args = [])
     {
 
         parent::__construct(array(
@@ -19,7 +20,8 @@ class cpfm_list_table extends CPFM_WP_List_Table
             'plural' => 'cpfm_list_labels', //plural label, also this well be one of the table css class
             'ajax' => false, // Don't support Ajax for this table
         ));
-
+        $this->view = isset($args['view']) ? $args['view'] : 'main';
+       
         add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
         wp_enqueue_style('feedback-style', plugin_dir_url(__FILE__) . 'feedback/css/admin-feedback.css',null,$this->plugin_version );
     }
@@ -45,49 +47,42 @@ class cpfm_list_table extends CPFM_WP_List_Table
     {
         if ($position == "top") {
             ?>
-                <div style="display:flow-root;margin-right:20px;">
-                    <?php $this->search_box('search', 'search_id'); ?>
-                </div>
-                <?php
-                GLOBAL $wpdb;
-                $tablename = $wpdb->base_prefix . 'cpfm_feedbacks';
-                $move_on_url = '&cat-filter=';
-                $cats = $wpdb->get_results('select * from '.$tablename.' group by plugin_name', ARRAY_A);
-                if( $cats ){
-                    $x=0;
-                    ?>
-                    <select name="cat-filter" class="ewc-filter-cat">
-                        <option value="">All Plugins</option>
-                        <?php
-                        foreach( $cats as $cat ){
-                            $selected = '';
-                            if( isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $cat['plugin_name'] ){
-                                $selected = ' selected = "selected"';   
-                            }
-                            $has_testis = false;
-                            $chk_testis = $wpdb->get_row("SELECT * FROM ".$tablename ." GROUP BY plugin_name", ARRAY_A);
-                            if( $chk_testis['id'] > 0 ){
-                        ?>
-                        <option value="<?php echo $cat['plugin_name']; ?>" <?php echo $selected; ?>><?php echo ucwords($cat['plugin_name']); ?></option>
-                        <?php 
-                        $x++;  
-                            }
-                        }
-                        ?>
-                    </select>
-                    <button class="button primary" id="cpfm_filter" >Filter</button>
-                      <label for="export_data_date_From">From:</label>
-                    <input type="date" name="export_data_date_From" value="<?php echo esc_attr($_REQUEST['export_data_date_From'] ?? ''); ?>">
-                    <label for="export_data_date_to">To:</label>
-                    <input type="date" name="export_data_date_to" value="<?php echo esc_attr($_REQUEST['export_data_date_to'] ?? ''); ?>">
-                    <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
-                    <?php
-                }
-         
-                ?>  
+            <div style="display:flow-root;margin-right:20px;">
+                <?php $this->search_box('search', 'search_id'); ?>
+            </div>
             <?php
-    
-    }
+            global $wpdb;
+        
+            // 👇 Dynamic table based on view
+            $tablename = $wpdb->base_prefix . ($this->view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
+        
+            $cats = $wpdb->get_results("SELECT * FROM $tablename GROUP BY plugin_name", ARRAY_A);
+        
+            if ($cats) {
+                ?>
+                <select name="cat-filter" class="ewc-filter-cat">
+                    <option value="">All Plugins</option>
+                    <?php foreach ($cats as $cat) :
+                        $selected = (isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $cat['plugin_name']) ? ' selected="selected"' : '';
+                    ?>
+                        <option value="<?php echo esc_attr($cat['plugin_name']); ?>" <?php echo $selected; ?>>
+                            <?php echo esc_html(ucwords($cat['plugin_name'])); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button class="button primary" id="cpfm_filter">Filter</button>
+        
+                <label for="export_data_date_From">From:</label>
+                <input type="date" name="export_data_date_From" value="<?php echo esc_attr($_REQUEST['export_data_date_From'] ?? ''); ?>">
+        
+                <label for="export_data_date_to">To:</label>
+                <input type="date" name="export_data_date_to" value="<?php echo esc_attr($_REQUEST['export_data_date_to'] ?? ''); ?>">
+        
+                <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
+                <?php
+            }
+        }
+        
         if ($position == "bottom") {
             echo "<em>Powered by Cool Plugins Team.</em> </form>";
         }
@@ -101,19 +96,40 @@ class cpfm_list_table extends CPFM_WP_List_Table
     */
     public function get_columns()
     {
-        return $columns = array(
-            // 'cb' => '<input type="checkbox"/>',
-            'id' => __('Sr.'),
-            'date' => __('Date'),
-            'plugin_initial'=> __('Plugin Initial'),
-            'plugin_version' => __('Plugin Version'),
-            'plugin_name' => __('Plugin Name'),
-            'reason' => __('Reason'),
-            'review' => __('Review'),
-            'domain' => __('Domain'),
-            'email' => __('Email'),
-            'more_details' => __('Extra Details'),
-        );
+        $columns = [];
+
+        $columns['id']             = __('Sr.');
+        $columns['date']           = __('Date');
+        $columns['plugin_initial'] = __('Plugin Initial');
+        $columns['plugin_version'] = __('Plugin Version');
+        $columns['plugin_name']    = __('Plugin Name');
+    
+        // This always comes before 'review'
+        
+    
+        if ($this->view !== 'insights') {
+            $columns['review']     = __('Review');
+            $columns['reason']         = __('Reason');
+        }
+    
+        $columns['domain']         = __('Domain');
+        $columns['email']          = __('Email');
+        $columns['more_details']   = __('Extra Details');
+    
+        return $columns;
+        // return $columns = array(
+        //     // 'cb' => '<input type="checkbox"/>',
+        //     'id' => __('Sr.'),
+        //     'date' => __('Date'),
+        //     'plugin_initial'=> __('Plugin Initial'),
+        //     'plugin_version' => __('Plugin Version'),
+        //     'plugin_name' => __('Plugin Name'),
+        //     'reason' => __('Reason'),
+        //     'review' => __('Review'),
+        //     'domain' => __('Domain'),
+        //     'email' => __('Email'),
+        //     'more_details' => __('Extra Details'),
+        // );
     }
 
     /*
@@ -182,39 +198,44 @@ class cpfm_list_table extends CPFM_WP_List_Table
         );
         return $status_links;
     }
+    public function cpfm_fetch_export_data($is_export) {
 
-    function cpfm_fetch_export_data($is_export) {
-        
         if (!$is_export) {
             return;
         }
-    
+   
         global $wpdb;
-        $table_name = $wpdb->base_prefix . 'cpfm_feedbacks';
-        $selected_columns = 'id, plugin_version, plugin_name, plugin_initial, reason, review, domain, email, deactivation_date';
+      
+        $is_insights = ($this->view === 'insights');
         
-        // Prepare query parts
+        $table_name = $wpdb->base_prefix . ($is_insights ? 'cpfm_site_info' : 'cpfm_feedbacks');
+        $date_column = $is_insights ? 'update_date' : 'deactivation_date';
+    
+        $selected_columns = $is_insights
+            ? 'id, plugin_name, plugin_version, plugin_initial, domain, email, update_date'
+            : 'id, plugin_name, plugin_version, plugin_initial, reason, review, domain, email, deactivation_date';
+    
+        // Build base query
         $query = "SELECT $selected_columns FROM $table_name";
         $conditions = [];
         $params = [];
     
-        // Apply plugin name filter if set
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
             $conditions[] = 'plugin_name LIKE %s';
             $params[] = '%' . $wpdb->esc_like($user_filter) . '%';
         }
     
-        // Apply date range filter if both dates are set
+       
         $from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
-        $to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        $to_date   = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
         if (!empty($from_date) && !empty($to_date)) {
-            $conditions[] = 'deactivation_date BETWEEN %s AND %s';
+            $conditions[] = "{$date_column} BETWEEN %s AND %s";
             $params[] = $from_date;
             $params[] = $to_date . ' 23:59:59';
         }
     
-        // Add conditions to query if any exist
+        // 🔗 Build final query
         if (!empty($conditions)) {
             $query .= ' WHERE ' . implode(' AND ', $conditions);
             $query = $wpdb->prepare($query, $params);
@@ -222,6 +243,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
     
         return $wpdb->get_results($query, ARRAY_A);
     }
+    
 
     /*
     |---------------------------------------------------------------------------------------|
@@ -235,7 +257,10 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $screen = get_current_screen();
         $user = get_current_user_id();
         echo '<h1>List All Reviews</h1><form method="post">';
-        $query = 'SELECT * FROM ' . $wpdb->base_prefix . 'cpfm_feedbacks';
+        $table_name = $this->view === 'insights' 
+        ? $wpdb->base_prefix . 'cpfm_site_info' 
+        : $wpdb->base_prefix . 'cpfm_feedbacks';
+        $query = 'SELECT * FROM ' . $table_name;
 
        /*  $this->cpfm_process_bulk_action();
         $this->cpfm_perform_row_actions(); */
@@ -261,7 +286,10 @@ class cpfm_list_table extends CPFM_WP_List_Table
             }else{
                 $query .= ' AND ';
             }
-            $query .= " deactivation_date BETWEEN '" . esc_sql($filter_from_date) . "' AND '" . esc_sql($filter_to_date) . " 23:59:59'";
+            $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
+
+            $query .= " {$date_column} BETWEEN '" . esc_sql($filter_from_date) . "' AND '" . esc_sql($filter_to_date) . " 23:59:59'";
+            
         }
 
         // Ordering parameters
@@ -338,7 +366,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
                             return $item->id;
                         break;
                         case "date":
-                            return date("F j, Y", strtotime($item->deactivation_date));
+                            $date_field = ($this->view === 'insights') ? $item->update_date : $item->deactivation_date;
+
+                            return !empty($date_field) ? date("F j, Y", strtotime($date_field)) : 'N/A';
                         break;  
                         case "plugin_initial":
                             return !empty($item->plugin_initial)?$item->plugin_initial:'N/A';
@@ -388,16 +418,17 @@ class cpfm_list_table extends CPFM_WP_List_Table
         return $select;
     }
     
-    static function cpfm_feedback_load_extra_data($value, $id) {
+    static function cpfm_feedback_load_extra_data($value, $id,$view) {
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'cpfm_feedbacks';   
-
+       
+        $table_name = $wpdb->prefix . ($view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
+       
         $result = $wpdb->get_row($wpdb->prepare(
             "SELECT extra_details, server_info FROM $table_name WHERE id = %d",
             $id
         ), ARRAY_A);
-
+        
         if ($result["extra_details"] === NULL || empty($result["extra_details"]) || $result["server_info"] === NULL || empty($result["server_info"])) {
             return '<h2>No data found.</h2>';
         }
@@ -1580,6 +1611,19 @@ foreach ($this->modes as $mode => $title) {
      */
     protected function get_column_info()
     {
+
+        if (isset($this->_column_headers)) {
+            return $this->_column_headers;
+        }
+    
+        $columns = $this->get_columns(); // use our dynamic method
+        $hidden = []; // you can customize with get_hidden_columns($this->screen)
+        $sortable = $this->get_sortable_columns();
+        $primary = $this->get_primary_column_name();
+    
+        $this->_column_headers = array($columns, $hidden, $sortable, $primary);
+    
+        return $this->_column_headers;
         // $_column_headers is already set / cached
         if (isset($this->_column_headers) && is_array($this->_column_headers)) {
             // Back-compat for list tables that have been manually setting $_column_headers for horse reasons.

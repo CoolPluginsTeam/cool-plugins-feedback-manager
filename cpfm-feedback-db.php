@@ -11,7 +11,7 @@ class cpfm_database {
 	 * @since   1.0
 	 */
 	public $table_name;
-
+	public $site_table_name;
 	public $primary_key;
 	
 	public $version;
@@ -21,7 +21,8 @@ class cpfm_database {
 
 		global $wpdb;
 
-		$this->table_name = $wpdb->base_prefix . 'cpfm_feedbacks';
+		$this->table_name      = $wpdb->base_prefix . 'cpfm_feedbacks';
+		$this->site_table_name = $wpdb->base_prefix . 'cpfm_site_info';
 		$this->primary_key = 'id';
 		$this->version = '1.0';
 
@@ -333,6 +334,38 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 		dbDelta($sql);
 
 		update_option($this->table_name . '_db_version', $this->version);
+	}
+
+	/**
+	 * Create the table
+	 *
+	 * @access  public
+	 * @since   1.0
+	 */
+	public function create_table_site_info()
+	{
+		global $wpdb;	
+		require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+		
+		$sql = "CREATE TABLE IF NOT EXISTS " . $this->site_table_name . " (
+            `id` bigint(20) NOT NULL AUTO_INCREMENT,
+			`site_id` varchar(250) NOT NULL,
+            `plugin_version` varchar(20) NOT NULL,
+            `plugin_name` varchar(250) NOT NULL,
+	        `plugin_initial` varchar(250) NOT NULL,
+			`domain` varchar(250) NOT NULL,
+			`email` varchar(250),
+			`extra_details` TEXT,
+			`server_info` TEXT,
+			`created_date` timestamp DEFAULT CURRENT_TIMESTAMP,
+        	`update_date` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY site_id (site_id)
+		) CHARACTER SET utf8 COLLATE utf8_general_ci;";
+		 
+		dbDelta($sql);
+
+		update_option($this->site_table_name . '_db_version', $this->version);
 	}
 	/**
 	 * Drop database table
