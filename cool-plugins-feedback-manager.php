@@ -30,7 +30,7 @@
         */
         function cpfm_site_register_rest_routes() {
 
-            register_rest_route('coolplugins-feedback/v1', 'site-info', array(
+            register_rest_route('coolplugins-feedback/v1', 'site', array(
 
                 'methods' => 'POST', 
                 'callback' => array($this,'cpfm_site_info_request'),
