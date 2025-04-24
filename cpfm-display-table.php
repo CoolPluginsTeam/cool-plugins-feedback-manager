@@ -110,11 +110,13 @@ class cpfm_list_table extends CPFM_WP_List_Table
         if ($this->view !== 'insights') {
             $columns['review']     = __('Review');
             $columns['reason']         = __('Reason');
+            $columns['status']         = __('Status');
         }
     
         $columns['domain']         = __('Domain');
         $columns['email']          = __('Email');
         $columns['more_details']   = __('Extra Details');
+        $columns['status']         = __('Status');
     
         return $columns;
         // return $columns = array(
@@ -240,8 +242,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $query .= ' WHERE ' . implode(' AND ', $conditions);
             $query = $wpdb->prepare($query, $params);
         }
-    
+        
         return $wpdb->get_results($query, ARRAY_A);
+ 
     }
     
 
@@ -262,8 +265,46 @@ class cpfm_list_table extends CPFM_WP_List_Table
         : $wpdb->base_prefix . 'cpfm_feedbacks';
         $query = 'SELECT * FROM ' . $table_name;
 
-       /*  $this->cpfm_process_bulk_action();
-        $this->cpfm_perform_row_actions(); */
+        $data_id = $this->view === 'insights' 
+        ? $wpdb->base_prefix . 'cpfm_feedbacks' 
+        : $wpdb->base_prefix . 'cpfm_site_info';
+        
+
+        $results = $wpdb->get_results( "SELECT * FROM $data_id", OBJECT );
+        $site_info =$wpdb->get_results($query);
+        $site_info_site_id = isset($site_info[0]->site_id) ? $site_info[0]->site_id : '';
+        $site_info_update_date = isset($site_info[0]->update_date) ? $site_info[0]->update_date : '';
+        $result_data = isset($results[0]->deactivation_date) ? $results[0]->deactivation_date : '';
+        $site_date = strtotime($site_info_update_date);
+        
+        if($result_data || $site_info_site_id ){
+       
+            
+            $user_site_id = isset($results[0]->site_id) ? $results[0]->site_id : '';
+            
+          
+            $user_date = strtotime($result_data);
+
+
+            if ($user_site_id !== $site_info_site_id || $site_date > $user_date) {
+                $status = 'Activated';
+            } elseif ($user_site_id === $site_info_site_id || $site_date < $user_date) {
+                $status = 'Deactivated';
+            }else{
+                $status = 'Activated';
+            }
+
+            if (!empty($status)) {
+                $wpdb->update(
+                    $wpdb->prefix . 'cpfm_site_info',
+                    array('status' => $status),
+                    array('site_id' => $user_site_id)
+                );
+            }
+        
+                        
+        }
+
 
         // search keyword
         $user_search_keyword = isset($_REQUEST['s']) ? wp_unslash(trim($_REQUEST['s'])) : '';
@@ -330,8 +371,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
          
         $this->_column_headers =  $this->get_column_info();
 
-        // Get feedback data from database
+
         $this->items = $wpdb->get_results($query);
+   
     }
 
 
@@ -354,9 +396,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
     */
     public function column_default( $item, $column_name )
     {
+    
 
         //Get the records registered in the prepare_items method
-        $records = $this->items;
         //Get the columns registered in the get_columns and get_sortable_columns methods
         $columns = $this->get_column_info();
 
@@ -393,6 +435,10 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         break;
                         case "more_details":
                             return '<a href="#" class="more-details-link" data-id="' . $item->id . '">View More</a>';
+                        break;
+                        case "status":
+                           
+                            return !empty($item->status)?$item->status:'N/A';
                         break;
                         
                         default:

@@ -328,6 +328,7 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`extra_details` TEXT,
 			`server_info` TEXT,
 			`deactivation_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			`site_id` varchar(250),
 			PRIMARY KEY (id)
 		) CHARACTER SET utf8 COLLATE utf8_general_ci;";
 		 
@@ -357,6 +358,7 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`email` varchar(250),
 			`extra_details` TEXT,
 			`server_info` TEXT,
+			`status` varchar(20) NOT NULL,
 			`created_date` timestamp DEFAULT CURRENT_TIMESTAMP,
         	`update_date` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),

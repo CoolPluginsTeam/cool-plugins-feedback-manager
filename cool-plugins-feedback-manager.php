@@ -40,14 +40,14 @@
         function cpfm_site_info_request(WP_REST_Request $request) {
 
             global $wpdb;
+
             $table_name     = $wpdb->prefix . 'cpfm_site_info';
-            $current_date   = current_time('mysql');
             $plugin_version = sanitize_text_field($request->get_param('plugin_version'));
             $plugin_name    = sanitize_text_field($request->get_param('plugin_name'));
             $plugin_initial = sanitize_text_field($request->get_param('plugin_initial'));
             $email          = sanitize_email($request->get_param('email'));
-            $extra_details  = maybe_serialize($request->get_param('extra_details'));
-            $server_info    = maybe_serialize($_SERVER);
+            $extra_details  = serialize($request->get_param('extra_details'));
+            $server_info    = serialize($request->get_param('server_info'));
             $site_id        = sanitize_text_field($request->get_param('site_id'));
             $site_url       = sanitize_text_field($request->get_param('site_url'));
 
@@ -60,8 +60,6 @@
                 'email'             => $email,
                 'extra_details'     => $extra_details,
                 'server_info'       => $server_info,
-                'update_date'       => $current_date,
-                'created_date'      => $current_date
             );
         
             // Check if record exists using prepared statement
@@ -322,7 +320,7 @@
         }
 
         function cpfm_register_feedback_api(){
-            register_rest_route( 'coolplugins-feedback/v1', 'feedback', array(
+            register_rest_route( 'coolplugins-feedback/v1', 'feedbacktest', array(
                 'methods' => 'POST',
                 'callback' => array($this, 'get_custom_users_data' ),
                  'permission_callback' => '__return_true'
@@ -367,6 +365,7 @@
                     'review'         => isset($review) ? sanitize_textarea_field($review) : '',
                     'domain'         => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
                     'email'          => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
+                    'site_id'        => isset($_REQUEST['site_id']) ? sanitize_text_field($_REQUEST['site_id']) : '',
                 )));              
             }
             
