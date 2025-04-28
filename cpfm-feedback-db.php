@@ -358,7 +358,6 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`email` varchar(250),
 			`extra_details` TEXT,
 			`server_info` TEXT,
-			`status` varchar(20) NOT NULL,
 			`created_date` timestamp DEFAULT CURRENT_TIMESTAMP,
         	`update_date` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
