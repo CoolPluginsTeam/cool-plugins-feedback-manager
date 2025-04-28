@@ -207,18 +207,19 @@ class cpfm_list_table extends CPFM_WP_List_Table
         }
    
         global $wpdb;
-      
+        
         $is_insights = ($this->view === 'insights');
         
         $table_name = $wpdb->base_prefix . ($is_insights ? 'cpfm_site_info' : 'cpfm_feedbacks');
         $date_column = $is_insights ? 'update_date' : 'deactivation_date';
-    
+        
         $selected_columns = $is_insights
-            ? 'id, plugin_name, plugin_version, plugin_initial, domain, email, update_date'
-            : 'id, plugin_name, plugin_version, plugin_initial, reason, review, domain, email, deactivation_date';
-    
+        ? 'id, site_id, plugin_name, plugin_version, plugin_initial, domain, email,status, update_date'
+        : 'id,site_id, plugin_name, plugin_version, plugin_initial, reason, review, domain, email, deactivation_date';
+        
         // Build base query
         $query = "SELECT $selected_columns FROM $table_name";
+
         $conditions = [];
         $params = [];
     
