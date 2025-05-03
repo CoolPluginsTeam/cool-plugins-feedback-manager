@@ -452,11 +452,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
                                     $item->site_id
                                 )
                             );
-                            
-                            $status = (strtotime($item->update_date) > strtotime($results->deactivation_date)) 
-                                ? 'Activated' 
-                                : 'Deactivated';
-                                
+                       
+                            if(isset($results->deactivation_date) && !empty($results->deactivation_date)){
+                                    $status = (strtotime($item->update_date) > strtotime($results->deactivation_date)) 
+                                        ? 'Activated' 
+                                        : 'Deactivated';
+                            }else{
+                                $status = 'Activated';
+                            }
                             return $status;
                         break;
                         

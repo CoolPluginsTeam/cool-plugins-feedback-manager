@@ -74,6 +74,8 @@
                     $set_clause = implode(', ', array_map(function($key) {
                         return "$key = %s";
                     }, array_keys($site_info)));
+
+                    $set_clause .= ', update_date = NOW()';
                     
                     $query = $wpdb->prepare(
                         "UPDATE $table_name SET $set_clause WHERE id = %d",
@@ -350,23 +352,33 @@
                 }
             }   
 
+            $DB = new cpfm_database();
+            $site_id =  sanitize_text_field($_REQUEST['site_id']);   
+            $table_name = $wpdb->base_prefix . 'cpfm_feedbacks';
 
+            $existing_id = $wpdb->get_var(
+                $wpdb->prepare("SELECT id FROM $table_name WHERE site_id = %s", $site_id)
+            );
 
-           
+            $data = array(
+                'server_info'     => isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
+                'extra_details'   => isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
+                'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
+                'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
+                'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
+                'reason'          => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
+                'review'          => isset($review) ? sanitize_textarea_field($review) : '',
+                'domain'          => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
+                'email'           => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
+            );
 
-                $DB = new cpfm_database();
-                $response = $DB->cpfm_insert_feedback( array(array(
-                   'server_info' =>isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
-                    'extra_details' =>isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
-                    'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
-                    'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
-                    'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
-                    'reason'         => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
-                    'review'         => isset($review) ? sanitize_textarea_field($review) : '',
-                    'domain'         => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
-                    'email'          => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
-                    'site_id'        => isset($_REQUEST['site_id']) ? sanitize_text_field($_REQUEST['site_id']) : '',
-                )));              
+            if ($existing_id) {
+             
+                $wpdb->update($table_name, $data, array('id' => $existing_id));
+            } else {
+                $data['site_id'] = $site_id;
+                $response = $DB->cpfm_insert_feedback(array($data));
+            }
             }
             
             

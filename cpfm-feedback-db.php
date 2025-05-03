@@ -54,7 +54,7 @@ class cpfm_database {
 	|	Call this function to insert/update data for single or multiple coin
 	|-----------------------------------------------------------------------
 	*/
-	function cpfm_insert_feedback($plugin_data){
+	function cpfm_insert_feedback($plugin_data,  $update = false, $primary_key = null){
 		if(is_array($plugin_data) && count($plugin_data)>0){		
 			return $this->wp_insert_rows($plugin_data,$this->table_name);
 		}
