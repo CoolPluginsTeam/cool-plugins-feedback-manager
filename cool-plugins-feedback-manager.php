@@ -330,58 +330,66 @@
         }
 
         function get_custom_users_data(){
+
             GLOBAL $wpdb;
             $response = false;
-
-            if( isset($_REQUEST['plugin_version']) && isset($_REQUEST['domain']) &&
-             isset($_REQUEST['reason']) ){
+            $review = '';
+            if( isset($_REQUEST['plugin_version']) && isset($_REQUEST['domain']) && isset($_REQUEST['reason']) ){
                  
-                 if( isset($_REQUEST['review']) ){
-                        $review = esc_sql( sanitize_text_field(trim($_REQUEST['review'])) );
-                 }else{
-                     $review = '';
-                 }
-
-            if($_REQUEST['reason'] === 'other'){
-                if(strlen($review) >= 20){
-                    $ticket_id = $this->create_new_ticket("Feedback from plugin deactivation : ".$_REQUEST['plugin_name']."",$review,$_REQUEST['email'],$_REQUEST['domain']);
-                    
-                    if(!empty($ticket_id) && isset($ticket_id)){
-                        $this->add_product_to_ticket($ticket_id,$_REQUEST['plugin_name']);
-                    } 
+                if( isset($_REQUEST['review']) ){
+                    $review = esc_sql( sanitize_text_field(trim($_REQUEST['review'])) );
                 }
-            }   
 
-            $DB = new cpfm_database();
-            $site_id =  sanitize_text_field($_REQUEST['site_id']);   
-            $table_name = $wpdb->base_prefix . 'cpfm_feedbacks';
+                if($_REQUEST['reason'] === 'other'){
+                    
+                    if(strlen($review) >= 20){
+                        $ticket_id = $this->create_new_ticket("Feedback from plugin deactivation : ".$_REQUEST['plugin_name']."",$review,$_REQUEST['email'],$_REQUEST['domain']);
+                        
+                        if(!empty($ticket_id) && isset($ticket_id)){
+                            $this->add_product_to_ticket($ticket_id,$_REQUEST['plugin_name']);
+                        } 
+                    }
+                }   
 
-            $existing_id = $wpdb->get_var(
-                $wpdb->prepare("SELECT id FROM $table_name WHERE site_id = %s", $site_id)
-            );
+                $DB             =   new cpfm_database();
+                $table_name     =   $wpdb->base_prefix . 'cpfm_feedbacks';
+                $existing_id    =   '';
+                $site_id        =   isset($_REQUEST['site_id']) ? sanitize_text_field($_REQUEST['site_id']):'';
 
-            $data = array(
-                'server_info'     => isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
-                'extra_details'   => isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
-                'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
-                'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
-                'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
-                'reason'          => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
-                'review'          => isset($review) ? sanitize_textarea_field($review) : '',
-                'domain'          => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
-                'email'           => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
-            );
+                if(!empty($site_id)){
 
-            if ($existing_id) {
-             
-                $wpdb->update($table_name, $data, array('id' => $existing_id));
-            } else {
-                $data['site_id'] = $site_id;
-                $response = $DB->cpfm_insert_feedback(array($data));
+                    $existing_id = $wpdb->get_var(
+                        $wpdb->prepare("SELECT id FROM $table_name WHERE site_id = %s", $site_id)
+                    );
+                }
+
+                $data = array(
+                    'server_info'     => isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
+                    'extra_details'   => isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
+                    'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
+                    'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
+                    'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
+                    'reason'          => isset($_REQUEST['reason']) ? sanitize_text_field($_REQUEST['reason']) : '',
+                    'review'          => isset($review) ? sanitize_textarea_field($review) : '',
+                    'domain'          => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
+                    'email'           => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
+                );
+
+                if(!empty($existing_id)) {
+                
+                    $wpdb->update($table_name, $data, array('id' => $existing_id));
+
+                }else {
+
+                    if (!empty($site_id)) {
+
+                        $data['site_id'] = $site_id;
+                    }
+                        
+                    $response = $DB->cpfm_insert_feedback([$data]);
+                }
             }
-            }
-            
-            
+
             die(json_encode($response));
         }
 
