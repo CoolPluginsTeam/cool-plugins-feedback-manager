@@ -322,7 +322,7 @@
         }
 
         function cpfm_register_feedback_api(){
-            register_rest_route( 'coolplugins-feedback/v1', 'feedbacktest', array(
+            register_rest_route( 'coolplugins-feedback/v1', 'feedback', array(
                 'methods' => 'POST',
                 'callback' => array($this, 'get_custom_users_data' ),
                  'permission_callback' => '__return_true'

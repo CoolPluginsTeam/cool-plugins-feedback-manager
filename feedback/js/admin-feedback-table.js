@@ -9,9 +9,10 @@
             
             if ($("#popup-box").length === 0) {
 
-                $("body").append(`<div id="popup-box" class="popup-container"> <div class="popup-content">
+                $("body").append(`<div id="popup-box" class="popup-container"> <button id="close-popup" class="close-btn" aria-label="Close Popup">&times;</button>
+                     <div class="popup-content">
                 <div class="cpfm-loader"></div>
-                </div> <button id="close-popup">Close</button></div>`);
+                </div> <button id="close-popup" class="close-btn" aria-label="Close Popup">&times;</button></div>`);
 
             } else {
 
