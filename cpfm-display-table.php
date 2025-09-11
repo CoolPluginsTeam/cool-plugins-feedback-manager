@@ -11,7 +11,8 @@
 
 class cpfm_list_table extends CPFM_WP_List_Table
 {
-    public function __construct()
+    private $view;
+    public function __construct($args = [])
     {
 
         parent::__construct(array(
@@ -19,9 +20,23 @@ class cpfm_list_table extends CPFM_WP_List_Table
             'plural' => 'cpfm_list_labels', //plural label, also this well be one of the table css class
             'ajax' => false, // Don't support Ajax for this table
         ));
-
+        $this->view = isset($args['view']) ? $args['view'] : 'main';
+       
+        add_action( 'admin_enqueue_scripts', array($this,'enqueue_feedback_script') );
+        wp_enqueue_style('feedback-style', plugin_dir_url(__FILE__) . 'feedback/css/admin-feedback.css',null,$this->plugin_version );
     }
- 
+    
+    function enqueue_feedback_script() {
+        
+        wp_enqueue_script( 'feedback-script', plugin_dir_url(__FILE__) . 'feedback/js/admin-feedback-table.js', array('jquery'), '1.0.0', true );
+
+        wp_localize_script('feedback-script', 'ajax_object', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('get_selected_value_nonce'),
+        ));
+        
+    }
+    
     /*
     |--------------------------------------------------------------------------------------|
     | Add extra markup in the toolbars before or after the list                            |
@@ -32,42 +47,54 @@ class cpfm_list_table extends CPFM_WP_List_Table
     {
         if ($position == "top") {
             ?>
-                <div style="display:flow-root;margin-right:20px;">
-                    <?php $this->search_box('search', 'search_id'); ?>
-                </div>
-                <?php
-                GLOBAL $wpdb;
-                $tablename = $wpdb->base_prefix . 'cpfm_feedbacks';
-                $move_on_url = '&cat-filter=';
-                $cats = $wpdb->get_results('select * from '.$tablename.' group by plugin_name', ARRAY_A);
-                if( $cats ){
-                    $x=0;
-                    ?>
-                    <select name="cat-filter" class="ewc-filter-cat">
-                        <option value="">All Plugins</option>
-                        <?php
-                        foreach( $cats as $cat ){
-                            $selected = '';
-                            if( isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $cat['plugin_name'] ){
-                                $selected = ' selected = "selected"';   
-                            }
-                            $has_testis = false;
-                            $chk_testis = $wpdb->get_row("SELECT * FROM ".$tablename ." GROUP BY plugin_name", ARRAY_A);
-                            if( $chk_testis['id'] > 0 ){
-                        ?>
-                        <option value="<?php echo $cat['plugin_name']; ?>" <?php echo $selected; ?>><?php echo ucwords($cat['plugin_name']); ?></option>
-                        <?php 
-                        $x++;  
-                            }
-                        }
-                        ?>
-                    </select>
-                    <button class="button primary" id="cpfm_filter">Filter</button>
-                    <?php
-                }
-                ?>  
+            <div style="display:flow-root;margin-right:20px;">
+                <?php $this->search_box('search', 'search_id'); ?>
+            </div>
             <?php
+            global $wpdb;
+        
+            // 👇 Dynamic table based on view
+            $tablename = $wpdb->base_prefix . ($this->view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
+        
+            // $cats = $wpdb->get_results("SELECT * FROM $tablename GROUP BY plugin_name", ARRAY_A);
+            $cache_key = 'cpfm_plugin_names_' . ($this->view === 'insights' ? 'insights' : 'main');
+
+            $cats = get_transient($cache_key);
+            if ($cats === false) {
+                $cats = $wpdb->get_col("
+                    SELECT DISTINCT plugin_name
+                    FROM {$tablename}
+                    WHERE plugin_name IS NOT NULL AND plugin_name <> ''
+                    ORDER BY plugin_name ASC
+                ");
+                set_transient($cache_key, $cats, 60 * MINUTE_IN_SECONDS);
+            }
+        
+            if ($cats) {
+                ?>
+                <select name="cat-filter" class="ewc-filter-cat">
+                    <option value="">All Plugins</option>
+                    <?php foreach ($cats as $plugin_name) :
+                        $selected = (isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $plugin_name) ? ' selected="selected"' : '';
+                    ?>
+                    <option value="<?php echo esc_attr($plugin_name); ?>" <?php echo $selected; ?>>
+                        <?php echo esc_html(ucwords($plugin_name)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button class="button primary" id="cpfm_filter">Filter</button>
+        
+                <label for="export_data_date_From">From:</label>
+                <input type="date" name="export_data_date_From" value="<?php echo esc_attr($_REQUEST['export_data_date_From'] ?? ''); ?>">
+        
+                <label for="export_data_date_to">To:</label>
+                <input type="date" name="export_data_date_to" value="<?php echo esc_attr($_REQUEST['export_data_date_to'] ?? ''); ?>">
+        
+                <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
+                <?php
+            }
         }
+        
         if ($position == "bottom") {
             echo "<em>Powered by Cool Plugins Team.</em> </form>";
         }
@@ -81,16 +108,30 @@ class cpfm_list_table extends CPFM_WP_List_Table
     */
     public function get_columns()
     {
-        return $columns = array(
-            // 'cb' => '<input type="checkbox"/>',
-            'id' => __('Sr.'),
-            'plugin_version' => __('Plugin Version'),
-            'plugin_name' => __('Plugin Name'),
-            'reason' => __('Reason'),
-            'review' => __('Review'),
-            'domain' => __('Domain'),
-            'email' => __('Email'),
-        );
+        $columns = [];
+
+        $columns['id']             = __('Sr.');
+        $columns['date']           = __('Date');
+        $columns['plugin_initial'] = __('Plugin Initial');
+        $columns['plugin_version'] = __('Plugin Version');
+        $columns['plugin_name']    = __('Plugin Name');
+    
+        // This always comes before 'review'
+        if ($this->view !== 'insights') {
+            $columns['review']     = __('Review');
+            $columns['reason']         = __('Reason');
+           
+        }
+    
+        $columns['domain']         = __('Domain');
+        $columns['email']          = __('Email');
+        $columns['more_details']   = __('Extra Details');
+        if ($this->view === 'insights') {
+            $columns['status']         = __('Status');
+        }
+    
+        return $columns;
+   
     }
 
     /*
@@ -159,6 +200,54 @@ class cpfm_list_table extends CPFM_WP_List_Table
         );
         return $status_links;
     }
+    public function cpfm_fetch_export_data($is_export) {
+
+        if (!$is_export) {
+            return;
+        }
+   
+        global $wpdb;
+        
+        $is_insights = ($this->view === 'insights');
+        
+        $table_name = $wpdb->base_prefix . ($is_insights ? 'cpfm_site_info' : 'cpfm_feedbacks');
+        $date_column = $is_insights ? 'update_date' : 'deactivation_date';
+        
+        $selected_columns = $is_insights
+        ? 'id, site_id, plugin_name, plugin_version, plugin_initial, domain, email,update_date'
+        : 'id,site_id, plugin_name, plugin_version, plugin_initial, reason, review, domain, email, deactivation_date';
+        
+        // Build base query
+        $query = "SELECT $selected_columns FROM $table_name";
+
+        $conditions = [];
+        $params = [];
+    
+        $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
+        if (!empty($user_filter)) {
+            $conditions[] = 'plugin_name LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($user_filter) . '%';
+        }
+    
+       
+        $from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $to_date   = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        if (!empty($from_date) && !empty($to_date)) {
+            $conditions[] = "{$date_column} BETWEEN %s AND %s";
+            $params[] = $from_date;
+            $params[] = $to_date . ' 23:59:59';
+        }
+    
+        // 🔗 Build final query
+        if (!empty($conditions)) {
+            $query .= ' WHERE ' . implode(' AND ', $conditions);
+            $query = $wpdb->prepare($query, $params);
+        }
+        
+        return $wpdb->get_results($query, ARRAY_A);
+ 
+    }
+    
 
     /*
     |---------------------------------------------------------------------------------------|
@@ -172,11 +261,15 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $screen = get_current_screen();
         $user = get_current_user_id();
         echo '<h1>List All Reviews</h1><form method="post">';
-        $query = 'SELECT * FROM ' . $wpdb->base_prefix . 'cpfm_feedbacks';
+        $table_name = $this->view === 'insights' 
+        ? $wpdb->base_prefix . 'cpfm_site_info' 
+        : $wpdb->base_prefix . 'cpfm_feedbacks';
+        $query = 'SELECT * FROM ' . $table_name;
 
-       /*  $this->cpfm_process_bulk_action();
-        $this->cpfm_perform_row_actions(); */
-
+        $data_id = $this->view === 'insights' 
+        ? $wpdb->base_prefix . 'cpfm_feedbacks' 
+        : $wpdb->base_prefix . 'cpfm_site_info';
+      
         // search keyword
         $user_search_keyword = isset($_REQUEST['s']) ? wp_unslash(trim($_REQUEST['s'])) : '';
         if (!empty($user_search_keyword)) {
@@ -186,8 +279,22 @@ class cpfm_list_table extends CPFM_WP_List_Table
 
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
-            $user_filter = str_replace('-',' ',$user_filter);
-            $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '"';
+           
+            $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '%"';
+        }
+
+        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        if (!empty($filter_from_date) && !empty($filter_to_date)) {
+            if(empty($user_filter) ){
+                $query .= ' WHERE ';
+            }else{
+                $query .= ' AND ';
+            }
+            $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
+
+            $query .= " {$date_column} BETWEEN '" . esc_sql($filter_from_date) . "' AND '" . esc_sql($filter_to_date) . " 23:59:59'";
+            
         }
 
         // Ordering parameters
@@ -228,9 +335,11 @@ class cpfm_list_table extends CPFM_WP_List_Table
          
         $this->_column_headers =  $this->get_column_info();
 
-        // Get feedback data from database
+
         $this->items = $wpdb->get_results($query);
+   
     }
+
 
     /*
     |-----------------------------------------------------|
@@ -251,18 +360,23 @@ class cpfm_list_table extends CPFM_WP_List_Table
     */
     public function column_default( $item, $column_name )
     {
-
-        //Get the records registered in the prepare_items method
-        $records = $this->items;
+       //Get the records registered in the prepare_items method
         //Get the columns registered in the get_columns and get_sortable_columns methods
         $columns = $this->get_column_info();
-
-                    //Display the column
+       
                     switch ($column_name) {
                         case "id":
-                        // wp_create_nonce('cpfm_bulk_delete');
+                       
                             return $item->id;
                         break;
+                        case "date":
+                            $date_field = ($this->view === 'insights') ? $item->update_date : $item->deactivation_date;
+
+                            return !empty($date_field) ? date("F j, Y", strtotime($date_field)) : 'N/A';
+                        break;  
+                        case "plugin_initial":
+                            return !empty($item->plugin_initial)?$item->plugin_initial:'N/A';
+                        break;                     
                         case "plugin_version":
                            return $item->plugin_version;
                         break;
@@ -281,13 +395,188 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         case "email":
                             return '<a href="mailto:'.$item->email.';">'.$item->email.'</a>';
                         break;
+                        case "more_details":
+                            return '<a href="#" class="more-details-link" data-id="' . $item->id . '">View More</a>';
+                        break;
+                      
+                        case "status":
+                           
+                            global $wpdb;
+                            
+                            $results = $wpdb->get_row(
+                                $wpdb->prepare(
+                                    "SELECT deactivation_date FROM {$wpdb->base_prefix}cpfm_feedbacks WHERE site_id = %s",
+                                    $item->site_id
+                                )
+                            );
+                       
+                            if(isset($results->deactivation_date) && !empty($results->deactivation_date)){
+                                    $status = (strtotime($item->update_date) > strtotime($results->deactivation_date)) 
+                                        ? 'Activated' 
+                                        : 'Deactivated';
+                            }else{
+                                $status = 'Activated';
+                            }
+                            return $status;
+                        break;
+                        
                         default:
                             return 'unknown column '.$column_name;
                     }
     }
 
-}
+    static function get_select_html($id,$selected_value = 'default') {
 
+        $options = [
+            'default' => 'Server Info',
+            'plugin' => 'Plugins Info',
+            'theme' => 'Themes Info'
+        ];
+        
+        $select = '<select id="popup-select"  data-id="' . $id . '">';
+        foreach ($options as $value => $label) {
+            $selected = ($value == $selected_value) ? ' selected' : '';
+            $select .= "<option value='{$value}'{$selected}>{$label}</option>";
+        }
+        $select .= '</select>';
+        
+        return $select;
+    }
+    
+    static function cpfm_feedback_load_extra_data($value, $id,$view) {
+
+        global $wpdb;
+       
+        $table_name = $wpdb->prefix . ($view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
+       
+        $result = $wpdb->get_row($wpdb->prepare(
+            "SELECT extra_details, server_info FROM $table_name WHERE id = %d",
+            $id
+        ), ARRAY_A);
+        
+        if ($result["extra_details"] === NULL || empty($result["extra_details"]) || $result["server_info"] === NULL || empty($result["server_info"])) {
+            return '<h2>No data found.</h2>';
+        }
+        $extra_details = unserialize(stripslashes($result['extra_details'])) ?: [];
+        $serve_info = unserialize(stripslashes($result['server_info'])) ?: [];
+       
+
+    
+        $table_attrs    = 'border="1" style="border-collapse: collapse; width: 100%;"';
+        $cell_attrs     = 'style="padding: 10px; border: 1px solid #ddd;"';
+        $header_style   = 'style="background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd;"';
+
+        switch ($value) {
+            case 'plugin':
+                return self::get_select_html($id,'plugin') . 
+                       self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
+                        
+            case 'theme':
+                return self::get_select_html($id,'theme') . 
+                       self::cpfm_render_extra_table($extra_details, $value, $table_attrs, $cell_attrs, $header_style);
+                        
+            default:
+                return self::get_select_html($id,'default') . 
+                       self::cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style);
+        }
+ 
+    }
+  
+         private static function cpfm_render_extra_table($extra_details, $type, $table_attrs, $cell_attrs, $header_style) { 
+        
+            if ($type === 'plugin' && empty($extra_details['active_plugins'])) {
+                return '<p>No active plugins found.</p>';
+            }
+            
+            if ($type === 'theme' && empty($extra_details['wp_theme'])) {
+                return '<p>No active theme found.</p>';
+            }
+        
+            $output = "<table $table_attrs>
+            <thead>
+            <tr>
+            <th $header_style>SR. No.</th>
+            <th $header_style>Name</th>
+            <th $header_style>Version</th>
+            <th $header_style>URL</th>
+            </tr>
+            </thead>
+            <tbody>";
+        
+            if ($type === 'plugin') {
+                foreach ($extra_details['active_plugins'] as $index => $plugin) {
+                    $count = $index + 1;
+                    $plugin_name = esc_html($plugin['name'] ?? 'N/A');
+                    $plugin_version = esc_html($plugin['version'] ?? 'N/A');
+                    $plugin_url = !empty($plugin['plugin_uri']) 
+                        ? '<a href="' . esc_url($plugin['plugin_uri']) . '" target="_blank">' . esc_html($plugin['plugin_uri']) . '</a>' 
+                        : 'N/A';
+        
+                    $output .= "<tr>
+                        <td $cell_attrs>$count</td>
+                        <td $cell_attrs>$plugin_name</td>
+                        <td $cell_attrs>$plugin_version</td>
+                        <td $cell_attrs>$plugin_url</td>
+                    </tr>";
+                }
+            } elseif ($type === 'theme') {
+                $theme = isset($extra_details['wp_theme']) ? $extra_details['wp_theme'] : [];
+                $theme_name = isset($theme['name']) ? esc_html($theme['name']) : 'N/A';
+                $theme_version = isset($theme['version']) ? esc_html($theme['version']) : 'N/A';
+                $theme_url = !empty($theme['theme_uri']) 
+                    ? '<a href="' . esc_url($theme['theme_uri']) . '" target="_blank">' . esc_html($theme['theme_uri']) . '</a>' 
+                    : 'N/A';
+        
+                $output .= "<tr>
+                    <td $cell_attrs>1</td>
+                    <td $cell_attrs>$theme_name</td>
+                    <td $cell_attrs>$theme_version</td>
+                    <td $cell_attrs>$theme_url</td>
+                </tr>";
+            }
+        
+            $output .= '</tbody></table>';
+            return $output;
+        }
+    
+    private static function cpfm_render_system_info_table($serve_info, $table_attrs, $cell_attrs, $header_style) {
+
+       $system_data = [
+
+            'Server Software' => isset($serve_info['server_software']) ? $serve_info['server_software'] : 'N/A',
+            'MySQL Version' => isset($serve_info['mysql_version']) ? $serve_info['mysql_version'] : 'N/A',
+            'PHP Version' => isset($serve_info['php_version']) ? $serve_info['php_version'] : 'N/A',
+            'WP Version' => isset($serve_info['wp_version']) ? $serve_info['wp_version'] : 'N/A',
+            'WP Debug' => isset($serve_info['wp_debug']) ? $serve_info['wp_debug'] : 'N/A',
+            'WP Memory Limit' => isset($serve_info['wp_memory_limit']) ? $serve_info['wp_memory_limit'] : 'N/A',
+            'WP Max Upload Size' => isset($serve_info['wp_max_upload_size']) ? $serve_info['wp_max_upload_size'] : 'N/A',
+            'WP Permalink Structure' => isset($serve_info['wp_permalink_structure']) ? $serve_info['wp_permalink_structure'] : 'N/A',
+            'WP Multisite' => isset($serve_info['wp_multisite']) ? $serve_info['wp_multisite'] : 'N/A',
+            'WP Language' => isset($serve_info['wp_language']) ? $serve_info['wp_language'] : 'N/A',
+            'WP Prefix' => isset($serve_info['wp_prefix']) ? $serve_info['wp_prefix'] : 'N/A'
+       ];
+    
+        $output = "<table $table_attrs><thead><tr>";
+        
+        // Headers
+        foreach (array_keys($system_data) as $header) {
+            $output .= "<th $header_style>" . esc_html($header) . "</th>";
+        }
+        
+        $output .= "</tr></thead><tbody><tr>";
+        
+        // Values
+        foreach ($system_data as $value) {
+            $output .= "<td $cell_attrs>" . esc_html($value) . "</td>";
+        }
+        
+        $output .= "</tr></tbody></table>";
+        
+        return $output;
+    }
+
+
+}
 
 /*
 |--------------------------------------------------------------------------------------------|
@@ -1097,34 +1386,49 @@ foreach ($this->modes as $mode => $title) {
         if (empty($this->_pagination_args)) {
             return;
         }
-
         $total_items = $this->_pagination_args['total_items'];
         $total_pages = $this->_pagination_args['total_pages'];
         $infinite_scroll = false;
         if (isset($this->_pagination_args['infinite_scroll'])) {
             $infinite_scroll = $this->_pagination_args['infinite_scroll'];
         }
-
+    
         if ('top' === $which && $total_pages > 1) {
             $this->screen->render_screen_reader_content('heading_pagination');
         }
-
+    
         $output = '<span class="displaying-num">' . sprintf(_n('%s item', '%s items', $total_items), number_format_i18n($total_items)) . '</span>';
-
+    
         $current = $this->get_pagenum();
         $removable_query_args = wp_removable_query_args();
-
+    
         $current_url = set_url_scheme('http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
-
         $current_url = remove_query_arg($removable_query_args, $current_url);
 
-        $page_links = array();
+        $current_url = remove_query_arg(['cat-filter', 'export_data_date_From', 'export_data_date_to'], $current_url);
 
+        $cat_filter = isset($_REQUEST['cat-filter']) ? $_REQUEST['cat-filter'] : '';
+        if ($cat_filter) {
+            $current_url = add_query_arg('cat-filter', $cat_filter, $current_url);
+        }
+        
+        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
+        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
+        
+        if ($filter_from_date) {
+            $current_url = add_query_arg('export_data_date_From', $filter_from_date, $current_url);
+        }
+        if ($filter_to_date) {
+            $current_url = add_query_arg('export_data_date_to', $filter_to_date, $current_url);
+        }
+    
+        $page_links = array();
+    
         $total_pages_before = '<span class="paging-input">';
         $total_pages_after = '</span></span>';
-
+    
         $disable_first = $disable_last = $disable_prev = $disable_next = false;
-
+    
         if ($current == 1) {
             $disable_first = true;
             $disable_prev = true;
@@ -1139,7 +1443,7 @@ foreach ($this->modes as $mode => $title) {
         if ($current == $total_pages - 1) {
             $disable_last = true;
         }
-
+    
         if ($disable_first) {
             $page_links[] = '<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&laquo;</span>';
         } else {
@@ -1150,7 +1454,7 @@ foreach ($this->modes as $mode => $title) {
                 '&laquo;'
             );
         }
-
+    
         if ($disable_prev) {
             $page_links[] = '<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&lsaquo;</span>';
         } else {
@@ -1161,7 +1465,7 @@ foreach ($this->modes as $mode => $title) {
                 '&lsaquo;'
             );
         }
-
+    
         if ('bottom' === $which) {
             $html_current_page = $current;
             $total_pages_before = '<span class="screen-reader-text">' . __('Current Page') . '</span><span id="table-paging" class="paging-input"><span class="tablenav-paging-text">';
@@ -1175,7 +1479,7 @@ foreach ($this->modes as $mode => $title) {
         }
         $html_total_pages = sprintf("<span class='total-pages'>%s</span>", number_format_i18n($total_pages));
         $page_links[] = $total_pages_before . sprintf(_x('%1$s of %2$s', 'paging'), $html_current_page, $html_total_pages) . $total_pages_after;
-
+    
         if ($disable_next) {
             $page_links[] = '<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&rsaquo;</span>';
         } else {
@@ -1186,7 +1490,7 @@ foreach ($this->modes as $mode => $title) {
                 '&rsaquo;'
             );
         }
-
+    
         if ($disable_last) {
             $page_links[] = '<span class="tablenav-pages-navspan button disabled" aria-hidden="true">&raquo;</span>';
         } else {
@@ -1197,22 +1501,23 @@ foreach ($this->modes as $mode => $title) {
                 '&raquo;'
             );
         }
-
+    
         $pagination_links_class = 'pagination-links';
         if (!empty($infinite_scroll)) {
             $pagination_links_class .= ' hide-if-js';
         }
         $output .= "\n<span class='$pagination_links_class'>" . join("\n", $page_links) . '</span>';
-
+    
         if ($total_pages) {
             $page_class = $total_pages < 2 ? ' one-page' : '';
         } else {
             $page_class = ' no-pages';
         }
         $this->_pagination = "<div class='tablenav-pages{$page_class}'>$output</div>";
-
+    
         echo $this->_pagination;
     }
+    
 
     /**
      * Get a list of columns. The format is:
@@ -1331,6 +1636,19 @@ foreach ($this->modes as $mode => $title) {
      */
     protected function get_column_info()
     {
+
+        if (isset($this->_column_headers)) {
+            return $this->_column_headers;
+        }
+    
+        $columns = $this->get_columns(); // use our dynamic method
+        $hidden = []; // you can customize with get_hidden_columns($this->screen)
+        $sortable = $this->get_sortable_columns();
+        $primary = $this->get_primary_column_name();
+    
+        $this->_column_headers = array($columns, $hidden, $sortable, $primary);
+    
+        return $this->_column_headers;
         // $_column_headers is already set / cached
         if (isset($this->_column_headers) && is_array($this->_column_headers)) {
             // Back-compat for list tables that have been manually setting $_column_headers for horse reasons.

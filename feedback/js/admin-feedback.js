@@ -56,7 +56,7 @@
             let nonce = $('#_wpnonce').val();
             let reason = $('.cool-plugins-deactivate-feedback-dialog-input:checked').val();
             let message = '';
-            console.log('textarea[name="reason_'+reason+'"]');
+           
             if( $('textarea[name="reason_'+reason+'"]').length>0 ){
                 if( $('textarea[name="reason_'+reason+'"]').val() == '' ){
                     alert('Please provide some extra information!');
@@ -97,5 +97,6 @@
             window.location = plugin_deactivate_link;
         });
 
+     
     });
 })(jQuery);
