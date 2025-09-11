@@ -254,90 +254,115 @@ class cpfm_list_table extends CPFM_WP_List_Table
     | Prepare the table with different parameters, pagination, columns and table elements   |
     |---------------------------------------------------------------------------------------|
     */
-    public function prepare_items()
-    {
-        
+    public function prepare_items() {
         global $wpdb, $_wp_column_headers;
         $screen = get_current_screen();
-        $user = get_current_user_id();
+        $user   = get_current_user_id();
         echo '<h1>List All Reviews</h1><form method="post">';
-        $table_name = $this->view === 'insights' 
-        ? $wpdb->base_prefix . 'cpfm_site_info' 
-        : $wpdb->base_prefix . 'cpfm_feedbacks';
-        $query = 'SELECT * FROM ' . $table_name;
 
-        $data_id = $this->view === 'insights' 
-        ? $wpdb->base_prefix . 'cpfm_feedbacks' 
-        : $wpdb->base_prefix . 'cpfm_site_info';
-      
-        // search keyword
-        $user_search_keyword = isset($_REQUEST['s']) ? wp_unslash(trim($_REQUEST['s'])) : '';
-        if (!empty($user_search_keyword)) {
-            $query .= ' WHERE plugin_name LIKE "%' . $user_search_keyword . '%" OR email LIKE "%' . $user_search_keyword . '%"
-            OR reason LIKE "%' . $user_search_keyword . '%" OR domain LIKE "%' . $user_search_keyword . '%"';
+        $table_name = ($this->view === 'insights')
+            ? $wpdb->base_prefix . 'cpfm_site_info' 
+            : $wpdb->base_prefix . 'cpfm_feedbacks';
+
+        $data_id = ($this->view === 'insights')
+            ? $wpdb->base_prefix . 'cpfm_feedbacks'
+            : $wpdb->base_prefix . 'cpfm_site_info';
+
+        $user_search_keyword = isset($_REQUEST['s']) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
+        $user_filter         = isset($_REQUEST['cat-filter']) ? sanitize_text_field( wp_unslash( $_REQUEST['cat-filter'] ) ) : '';
+        $filter_from_date    = isset($_REQUEST['export_data_date_From']) ? sanitize_text_field( wp_unslash( $_REQUEST['export_data_date_From'] ) ) : '';
+        $filter_to_date      = isset($_REQUEST['export_data_date_to']) ? sanitize_text_field( wp_unslash( $_REQUEST['export_data_date_to'] ) ) : '';
+
+        // Build WHERE (single place) + params
+        $where  = [];
+        $params = [];
+
+        if ( $user_search_keyword !== '' ) {
+            $like = '%' . $wpdb->esc_like( $user_search_keyword ) . '%';
+            $where[] = '(plugin_name LIKE %s OR email LIKE %s OR reason LIKE %s OR domain LIKE %s)';
+            array_push( $params, $like, $like, $like, $like );
         }
 
-        $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
-        if (!empty($user_filter)) {
-           
-            $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '%"';
+        if ( $user_filter !== '' ) {
+            $like = '%' . $wpdb->esc_like( $user_filter ) . '%';
+            $where[] = 'plugin_name LIKE %s';
+            $params[] = $like;
         }
 
-        $filter_from_date = isset($_REQUEST['export_data_date_From']) ? wp_unslash(trim($_REQUEST['export_data_date_From'])) : '';
-        $filter_to_date = isset($_REQUEST['export_data_date_to']) ? wp_unslash(trim($_REQUEST['export_data_date_to'])) : '';
-        if (!empty($filter_from_date) && !empty($filter_to_date)) {
-            if(empty($user_filter) ){
-                $query .= ' WHERE ';
-            }else{
-                $query .= ' AND ';
-            }
-            $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
-
-            $query .= " {$date_column} BETWEEN '" . esc_sql($filter_from_date) . "' AND '" . esc_sql($filter_to_date) . " 23:59:59'";
-            
+        $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
+        if ( $filter_from_date !== '' && $filter_to_date !== '' ) {
+            $where[]  = "{$date_column} BETWEEN %s AND %s";
+            $params[] = $filter_from_date . ' 00:00:00';
+            $params[] = $filter_to_date   . ' 23:59:59';
         }
 
-        // Ordering parameters
-        $orderby = !empty($_REQUEST["orderby"]) ? esc_sql($_REQUEST["orderby"]) : 'id';
-        $order = !empty($_REQUEST["order"]) ? esc_sql($_REQUEST["order"]) : 'DESC';
-        if (!empty($orderby) & !empty($order)) {
-            $query .= ' ORDER BY ' . $orderby . ' ' . $order;
+        $where_sql = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
+
+        $allowed_orderby = ['id', 'plugin_name', 'email', 'reason', 'domain', $date_column];
+        $orderby = isset($_REQUEST['orderby']) && in_array($_REQUEST['orderby'], $allowed_orderby, true) ? $_REQUEST['orderby'] : 'id';
+        $order   = (isset($_REQUEST['order']) && strtoupper($_REQUEST['order']) === 'ASC') ? 'ASC' : 'DESC';
+
+        $count_sql   = "SELECT COUNT(*) FROM {$table_name}{$where_sql}";
+        if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
+            $count_prepared = $params ? $wpdb->prepare( $count_sql, $params ) : $count_sql;
+            $count_key_src  = $wpdb->remove_placeholder_escape( $count_prepared );
+        } else {
+            $count_key_src = wp_json_encode( [
+                'sql'    => $count_sql,
+                'params' => $params,
+            ] );
+        }
+        $count_cache_key = 'cpfm_count_' . md5( $count_key_src );
+        $totalitems = get_transient( $count_cache_key );
+        if ( false === $totalitems ) {
+            $totalitems = (int) ( $params
+                ? $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) )
+                : $wpdb->get_var( $count_sql )
+            );
+            set_transient( $count_cache_key, $totalitems, 10 * MINUTE_IN_SECONDS );
         }
 
-        // Pagination parameters
-        $totalitems = $wpdb->query($query);
-        $option = $screen->get_option('per_page', 'option');
-        $perpage = (int)get_user_meta($user, $option, true);
-        if (!is_numeric($perpage) || empty($perpage)) {
+        $option  = $screen->get_option('per_page', 'option');
+        $perpage = (int) get_user_meta( $user, $option, true );
+        if ( ! is_numeric( $perpage ) || $perpage <= 0 ) {
             $perpage = 10;
         }
 
-        $paged = !empty($_REQUEST["paged"]) ? esc_sql($_REQUEST["paged"]) : false;
+        $paged = isset($_REQUEST['paged']) ? (int) $_REQUEST['paged'] : 1;
+        if ( $paged <= 0 ) { $paged = 1; }
 
-        if (empty($paged) || !is_numeric($paged) || $paged <= 0) {
-            $paged = 1;
+        $totalpages = ( $perpage > 0 ) ? (int) ceil( $totalitems / $perpage ) : 1;
+        $offset     = ($paged - 1) * $perpage;
+
+        $select_sql = "SELECT * FROM {$table_name}{$where_sql} ORDER BY {$orderby} {$order} LIMIT %d, %d";
+        $select_params = $params;
+        $select_params[] = (int) $offset;
+        $select_params[] = (int) $perpage;
+
+        $query = $wpdb->prepare( $select_sql, $select_params );
+
+        // Register pagxination args 
+        $this->set_pagination_args([
+            'total_items' => $totalitems,
+            'total_pages' => max(1, $totalpages),
+            'per_page'    => $perpage,
+        ]);
+
+        $this->_column_headers = $this->get_column_info();
+
+        // Caching (cache key includes prepared SQL, so per-filter/page)
+        $normalized_query = method_exists( $wpdb, 'remove_placeholder_escape' )
+            ? $wpdb->remove_placeholder_escape( $query )
+            : $query;
+
+        $cache_key = 'cpfm_rows_' . md5( $normalized_query );
+        $rows = get_transient( $cache_key );
+        if ( false === $rows ) {
+            $rows = $wpdb->get_results( $query );
+            set_transient( $cache_key, $rows, 10 * MINUTE_IN_SECONDS );
         }
 
-        $totalpages = ceil($totalitems / $perpage);
-
-        if (!empty($paged) && !empty($perpage)) {
-            $offset = ($paged - 1) * $perpage;
-            $query .= ' LIMIT ' . (int) $offset . ',' . (int) $perpage;
-        }
-
-        // Register the pagination & build link
-        $this->set_pagination_args(array(
-            "total_items" => $totalitems,
-            "total_pages" => $totalpages,
-            "per_page" => $perpage,
-        )
-        );
-         
-        $this->_column_headers =  $this->get_column_info();
-
-
-        $this->items = $wpdb->get_results($query);
-   
+        $this->items = $rows;
     }
 
 
