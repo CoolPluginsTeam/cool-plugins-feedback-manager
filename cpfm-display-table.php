@@ -56,17 +56,29 @@ class cpfm_list_table extends CPFM_WP_List_Table
             // 👇 Dynamic table based on view
             $tablename = $wpdb->base_prefix . ($this->view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
         
-            $cats = $wpdb->get_results("SELECT * FROM $tablename GROUP BY plugin_name", ARRAY_A);
+            // $cats = $wpdb->get_results("SELECT * FROM $tablename GROUP BY plugin_name", ARRAY_A);
+            $cache_key = 'cpfm_plugin_names_' . ($this->view === 'insights' ? 'insights' : 'main');
+
+            $cats = get_transient($cache_key);
+            if ($cats === false) {
+                $cats = $wpdb->get_col("
+                    SELECT DISTINCT plugin_name
+                    FROM {$tablename}
+                    WHERE plugin_name IS NOT NULL AND plugin_name <> ''
+                    ORDER BY plugin_name ASC
+                ");
+                set_transient($cache_key, $cats, 60 * MINUTE_IN_SECONDS);
+            }
         
             if ($cats) {
                 ?>
                 <select name="cat-filter" class="ewc-filter-cat">
                     <option value="">All Plugins</option>
-                    <?php foreach ($cats as $cat) :
-                        $selected = (isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $cat['plugin_name']) ? ' selected="selected"' : '';
+                    <?php foreach ($cats as $plugin_name) :
+                        $selected = (isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $plugin_name) ? ' selected="selected"' : '';
                     ?>
-                        <option value="<?php echo esc_attr($cat['plugin_name']); ?>" <?php echo $selected; ?>>
-                            <?php echo esc_html(ucwords($cat['plugin_name'])); ?>
+                    <option value="<?php echo esc_attr($plugin_name); ?>" <?php echo $selected; ?>>
+                        <?php echo esc_html(ucwords($plugin_name)); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -105,12 +117,10 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $columns['plugin_name']    = __('Plugin Name');
     
         // This always comes before 'review'
-        
-    
         if ($this->view !== 'insights') {
             $columns['review']     = __('Review');
             $columns['reason']         = __('Reason');
-            // $columns['status']         = __('Status');
+           
         }
     
         $columns['domain']         = __('Domain');
@@ -121,19 +131,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
         }
     
         return $columns;
-        // return $columns = array(
-        //     // 'cb' => '<input type="checkbox"/>',
-        //     'id' => __('Sr.'),
-        //     'date' => __('Date'),
-        //     'plugin_initial'=> __('Plugin Initial'),
-        //     'plugin_version' => __('Plugin Version'),
-        //     'plugin_name' => __('Plugin Name'),
-        //     'reason' => __('Reason'),
-        //     'review' => __('Review'),
-        //     'domain' => __('Domain'),
-        //     'email' => __('Email'),
-        //     'more_details' => __('Extra Details'),
-        // );
+   
     }
 
     /*
@@ -216,7 +214,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $date_column = $is_insights ? 'update_date' : 'deactivation_date';
         
         $selected_columns = $is_insights
-        ? 'id, site_id, plugin_name, plugin_version, plugin_initial, domain, email,status, update_date'
+        ? 'id, site_id, plugin_name, plugin_version, plugin_initial, domain, email,update_date'
         : 'id,site_id, plugin_name, plugin_version, plugin_initial, reason, review, domain, email, deactivation_date';
         
         // Build base query
@@ -271,45 +269,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $data_id = $this->view === 'insights' 
         ? $wpdb->base_prefix . 'cpfm_feedbacks' 
         : $wpdb->base_prefix . 'cpfm_site_info';
-        
-
-        // $results = $wpdb->get_results( "SELECT * FROM $data_id", OBJECT );
-        // // var_dump($results);die();
-        // $site_info =$wpdb->get_results($query);
-        // $site_info_site_id = isset($site_info[0]->site_id) ? $site_info[0]->site_id : '';
-        // $site_info_update_date = isset($site_info[0]->update_date) ? $site_info[0]->update_date : '';
-        // $result_data = isset($results[0]->deactivation_date) ? $results[0]->deactivation_date : '';
-        // $site_date = strtotime($site_info_update_date);
-        
-        // if($result_data || $site_info_site_id ){
-       
-            
-        //     $user_site_id = isset($results[0]->site_id) ? $results[0]->site_id : '';
-            
-          
-        //     $user_date = strtotime($result_data);
-
-
-        //     if ($user_site_id !== $site_info_site_id || $site_date > $user_date) {
-        //         $status = 'Activated';
-        //     } elseif ($user_site_id === $site_info_site_id || $site_date < $user_date) {
-        //         $status = 'Deactivated';
-        //     }else{
-        //         $status = 'Activated';
-        //     }
-
-        //     // if (!empty($status)) {
-        //     //     $wpdb->update(
-        //     //         $wpdb->prefix . 'cpfm_site_info',
-        //     //         array('status' => $status),
-        //     //         array('site_id' => $user_site_id)
-        //     //     );
-        //     // }
-        
-                        
-        // }
-
-
+      
         // search keyword
         $user_search_keyword = isset($_REQUEST['s']) ? wp_unslash(trim($_REQUEST['s'])) : '';
         if (!empty($user_search_keyword)) {
@@ -319,7 +279,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
 
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
-            // $user_filter = str_replace('-',' ',$user_filter);
+           
             $query .= ' WHERE plugin_name LIKE "%' . $user_filter . '%"';
         }
 
@@ -400,10 +360,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
     */
     public function column_default( $item, $column_name )
     {
-        // echo "<pre>";
-        //  print_r($item->site_id);die();
-
-        //Get the records registered in the prepare_items method
+       //Get the records registered in the prepare_items method
         //Get the columns registered in the get_columns and get_sortable_columns methods
         $columns = $this->get_column_info();
        

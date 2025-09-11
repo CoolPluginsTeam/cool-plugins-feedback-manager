@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Cool Plugins Feedback Manager
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: Cool Plugins Team
  * Description: This plugin manage all feedback data received from users who deactivate 'Cool Plugins'.
  */
@@ -9,13 +9,15 @@
  define('CPFM_FILE', __FILE__);
  define("CPFM_DIR", plugin_dir_path(CPFM_FILE));
 
+
+register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'activate_plugin' ) );
+
  class Cool_Plugins_Feedback_Manager{
         private $cpfm_current_view;
         function __construct(){
             require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
             require_once CPFM_DIR . 'cpfm-feedback-db.php';
 
-            add_action('admin_init', array($this, 'cpfm_init') );
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
@@ -24,6 +26,15 @@
             add_action('rest_api_init', array($this,'cpfm_site_register_rest_routes'));
 
         }
+
+        public static function activate_plugin(){
+            if(class_exists('cpfm_database')){
+                $database = new cpfm_database();
+                $database->create_table();
+                $database->create_table_site_info();
+            }
+        }
+
 
         /**
         * Register REST API routes for Site Info Tracker
@@ -479,13 +490,6 @@
         
         }
 
-        function cpfm_init(){
-
-            $database = new cpfm_database();
-            $database->create_table();
-            $database->create_table_site_info();
-
-        }
 
  }
  new Cool_Plugins_Feedback_Manager();
