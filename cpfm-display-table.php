@@ -302,25 +302,11 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $orderby = isset($_REQUEST['orderby']) && in_array($_REQUEST['orderby'], $allowed_orderby, true) ? $_REQUEST['orderby'] : 'id';
         $order   = (isset($_REQUEST['order']) && strtoupper($_REQUEST['order']) === 'ASC') ? 'ASC' : 'DESC';
 
-        $count_sql   = "SELECT COUNT(*) FROM {$table_name}{$where_sql}";
-        if ( method_exists( $wpdb, 'remove_placeholder_escape' ) ) {
-            $count_prepared = $params ? $wpdb->prepare( $count_sql, $params ) : $count_sql;
-            $count_key_src  = $wpdb->remove_placeholder_escape( $count_prepared );
-        } else {
-            $count_key_src = wp_json_encode( [
-                'sql'    => $count_sql,
-                'params' => $params,
-            ] );
-        }
-        $count_cache_key = 'cpfm_count_' . md5( $count_key_src );
-        $totalitems = get_transient( $count_cache_key );
-        if ( false === $totalitems ) {
-            $totalitems = (int) ( $params
-                ? $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) )
-                : $wpdb->get_var( $count_sql )
-            );
-            set_transient( $count_cache_key, $totalitems, 10 * MINUTE_IN_SECONDS );
-        }
+        $count_sql  = "SELECT COUNT(*) FROM {$table_name}{$where_sql}";
+        $totalitems = (int) ( $params
+            ? $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) )
+            : $wpdb->get_var( $count_sql )
+        );
 
         $option  = $screen->get_option('per_page', 'option');
         $perpage = (int) get_user_meta( $user, $option, true );
@@ -350,17 +336,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
 
         $this->_column_headers = $this->get_column_info();
 
-        // Caching (cache key includes prepared SQL, so per-filter/page)
-        $normalized_query = method_exists( $wpdb, 'remove_placeholder_escape' )
-            ? $wpdb->remove_placeholder_escape( $query )
-            : $query;
-
-        $cache_key = 'cpfm_rows_' . md5( $normalized_query );
-        $rows = get_transient( $cache_key );
-        if ( false === $rows ) {
-            $rows = $wpdb->get_results( $query );
-            set_transient( $cache_key, $rows, 10 * MINUTE_IN_SECONDS );
-        }
+        $rows = $wpdb->get_results( $query );
 
         $this->items = $rows;
     }
