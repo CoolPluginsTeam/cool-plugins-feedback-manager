@@ -419,6 +419,17 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             );
 
             add_action("load-".$submenu_hook, array($this, 'cpfm_add_submenu_options'));
+            
+            $data_overview_hook = add_submenu_page(
+                'cpfm',                                
+                'Data Overview',                       
+                'Data Overview',                   
+                'manage_options',                    
+                'cpfm-data-overview',                      
+                array($this, 'cpfm_data_overview_page') 
+            );
+
+            add_action("load-".$data_overview_hook, array($this, 'cpfm_data_overview_options'));
          
         }
         public function cpfm_add_submenu_options() {
@@ -437,6 +448,10 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
            
             new cpfm_list_table;
            
+        }
+
+        public function cpfm_data_overview_options() {
+
         }
         
         function cpfm_add_options(){

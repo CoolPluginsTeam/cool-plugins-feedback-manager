@@ -35,6 +35,10 @@ class cpfm_list_table extends CPFM_WP_List_Table
             'nonce'    => wp_create_nonce('get_selected_value_nonce'),
         ));
         
+        // Enqueue Flatpickr for date range picker
+        wp_enqueue_style('flatpickr-css', plugin_dir_url(__FILE__) . 'assets/css/flatpickr.min.css', null, '1.0.0');
+        wp_enqueue_script('flatpickr-js', plugin_dir_url(__FILE__) . 'assets/js/flatpickr.min.js', array('jquery'), '1.0.0', true);
+        
     }
     
     /*
@@ -81,16 +85,61 @@ class cpfm_list_table extends CPFM_WP_List_Table
                         <?php echo esc_html(ucwords($plugin_name)); ?>
                         </option>
                     <?php endforeach; ?>
-                </select>
-                <button class="button primary" id="cpfm_filter">Filter</button>
-        
-                <label for="export_data_date_From">From:</label>
-                <input type="date" name="export_data_date_From" value="<?php echo esc_attr($_REQUEST['export_data_date_From'] ?? ''); ?>">
-        
-                <label for="export_data_date_to">To:</label>
-                <input type="date" name="export_data_date_to" value="<?php echo esc_attr($_REQUEST['export_data_date_to'] ?? ''); ?>">
+                </select> 
+                <label for="dateRange">Filter by Date:</label>
+                <input type="text" id="dateRange" placeholder="Select date range" style="padding: 4px; width: 200px; font-size: 12px;" value="<?php 
+                    $from = $_REQUEST['export_data_date_From'] ?? '';
+                    $to = $_REQUEST['export_data_date_to'] ?? '';
+                    if ($from && $to) {
+                        echo esc_attr($from . ' to ' . $to);
+                    }
+                ?>" />
+                <input type="hidden" name="export_data_date_From" id="export_data_date_From" value="<?php echo esc_attr($_REQUEST['export_data_date_From'] ?? ''); ?>">
+                <input type="hidden" name="export_data_date_to" id="export_data_date_to" value="<?php echo esc_attr($_REQUEST['export_data_date_to'] ?? ''); ?>">
+               <input type="search" id="search_id-search-plugin" name="s2" placeholder="Plugin Name" value="<?php echo esc_attr($_REQUEST['s2'] ?? ''); ?>" />
+               <input type="submit" id="search_id-search-plugin-submit" class="button" value="Apply filters" />
+               
         
                 <input type="submit" name="export_data" id="export_data" class="button primary" value="Export Data" style="margin-left: 10px;" />
+                
+                <script>
+                jQuery(document).ready(function($) {
+                    if (typeof flatpickr !== 'undefined') {
+                        var dateRangePicker = flatpickr("#dateRange", {
+                            mode: "range",
+                            dateFormat: "Y-m-d",
+                            allowInput: true,
+                            onChange: function(selectedDates, dateStr, instance) {
+                                if (selectedDates.length === 2) {
+                                    // Format dates as Y-m-d
+                                    var fromDate = selectedDates[0].toISOString().split('T')[0];
+                                    var toDate = selectedDates[1].toISOString().split('T')[0];
+                                    
+                                    $('#export_data_date_From').val(fromDate);
+                                    $('#export_data_date_to').val(toDate);
+                                }
+                            },
+                            onReady: function(selectedDates, dateStr, instance) {
+                                // Add clear button inside the calendar
+                                var clearBtn = document.createElement("button");
+                                clearBtn.innerHTML = "Clear";
+                                clearBtn.type = "button";
+                                clearBtn.className = "flatpickr-clear-btn";
+                                clearBtn.style.cssText = "width: 100%; padding: 8px; margin-top: 5px; background: #dc3545; color: white; border: none; cursor: pointer; font-size: 13px; border-radius: 3px;";
+                                
+                                clearBtn.addEventListener("click", function() {
+                                    instance.clear();
+                                    $('#export_data_date_From').val('');
+                                    $('#export_data_date_to').val('');
+                                    instance.close();
+                                });
+                                
+                                instance.calendarContainer.appendChild(clearBtn);
+                            }
+                        });
+                    }
+                });
+                </script>
                 <?php
             }
         }
@@ -269,6 +318,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             : $wpdb->base_prefix . 'cpfm_site_info';
 
         $user_search_keyword = isset($_REQUEST['s']) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
+        $user_search_keyword_plugin = isset($_REQUEST['s2']) ? sanitize_text_field( wp_unslash( $_REQUEST['s2'] ) ) : '';
         $user_filter         = isset($_REQUEST['cat-filter']) ? sanitize_text_field( wp_unslash( $_REQUEST['cat-filter'] ) ) : '';
         $filter_from_date    = isset($_REQUEST['export_data_date_From']) ? sanitize_text_field( wp_unslash( $_REQUEST['export_data_date_From'] ) ) : '';
         $filter_to_date      = isset($_REQUEST['export_data_date_to']) ? sanitize_text_field( wp_unslash( $_REQUEST['export_data_date_to'] ) ) : '';
@@ -282,7 +332,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $where[] = '(plugin_name LIKE %s OR email LIKE %s OR reason LIKE %s OR domain LIKE %s)';
             array_push( $params, $like, $like, $like, $like );
         }
-
+        if ( $user_search_keyword_plugin !== '' ) {
+            $like = '%' . $wpdb->esc_like( $user_search_keyword_plugin ) . '%';
+    
+            // Serialized data mein bhi search
+            $where[] = '(plugin_name LIKE %s OR email LIKE %s OR domain LIKE %s OR extra_details LIKE %s)';
+            
+            array_push( $params, $like, $like, $like, $like );
+        }
         if ( $user_filter !== '' ) {
             $like = '%' . $wpdb->esc_like( $user_filter ) . '%';
             $where[] = 'plugin_name LIKE %s';
@@ -967,7 +1024,6 @@ class CPFM_WP_List_Table
 </p>
 		<?php
 }
-
     /**
      * Get an associative array ( id => link ) with the list
      * of views available on this table.
