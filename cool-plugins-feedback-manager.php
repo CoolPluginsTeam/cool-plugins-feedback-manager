@@ -451,7 +451,9 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         }
 
         public function cpfm_data_overview_options() {
-
+            // Enqueue Flatpickr scripts/styles for overview page
+            wp_enqueue_style('flatpickr-css', plugin_dir_url(CPFM_FILE) . 'assets/css/flatpickr.min.css', null, '1.0.0');
+            wp_enqueue_script('flatpickr-js', plugin_dir_url(CPFM_FILE) . 'assets/js/flatpickr.min.js', array('jquery'), '1.0.0', true);
         }
         
         function cpfm_add_options(){
@@ -505,6 +507,13 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         
         }
 
+        function cpfm_data_overview_page(){
 
- }
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            CPFM_Data_Overview::display_overview_page();
+        
+        }
+
+
+}
  new Cool_Plugins_Feedback_Manager();

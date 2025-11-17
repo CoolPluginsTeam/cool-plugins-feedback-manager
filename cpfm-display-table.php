@@ -66,7 +66,7 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $cats = get_transient($cache_key);
             if ($cats === false) {
                 $cats = $wpdb->get_col("
-                    SELECT DISTINCT plugin_name
+                    SELECT DISTINCT TRIM(plugin_name) as plugin_name
                     FROM {$tablename}
                     WHERE plugin_name IS NOT NULL AND plugin_name <> ''
                     ORDER BY plugin_name ASC
@@ -78,11 +78,14 @@ class cpfm_list_table extends CPFM_WP_List_Table
                 ?>
                 <select name="cat-filter" class="ewc-filter-cat">
                     <option value="">All Plugins</option>
-                    <?php foreach ($cats as $plugin_name) :
-                        $selected = (isset($_REQUEST['cat-filter']) && $_REQUEST['cat-filter'] == $plugin_name) ? ' selected="selected"' : '';
+                    <?php 
+                    $selected_filter = isset($_REQUEST['cat-filter']) ? trim($_REQUEST['cat-filter']) : '';
+                    foreach ($cats as $plugin_name) :
+                        $plugin_name_trimmed = trim($plugin_name);
+                        $selected = ($selected_filter === $plugin_name_trimmed) ? ' selected="selected"' : '';
                     ?>
-                    <option value="<?php echo esc_attr($plugin_name); ?>" <?php echo $selected; ?>>
-                        <?php echo esc_html(ucwords($plugin_name)); ?>
+                    <option value="<?php echo esc_attr($plugin_name_trimmed); ?>" <?php echo $selected; ?>>
+                        <?php echo esc_html(ucwords(strtolower($plugin_name_trimmed))); ?>
                         </option>
                     <?php endforeach; ?>
                 </select> 
@@ -274,8 +277,9 @@ class cpfm_list_table extends CPFM_WP_List_Table
     
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
-            $conditions[] = 'plugin_name LIKE %s';
-            $params[] = '%' . $wpdb->esc_like($user_filter) . '%';
+            // Use exact match with TRIM to distinguish between "cool timeline" and "cool timeline pro"
+            $conditions[] = 'TRIM(plugin_name) = %s';
+            $params[] = trim($user_filter);
         }
     
        
@@ -334,16 +338,17 @@ class cpfm_list_table extends CPFM_WP_List_Table
         }
         if ( $user_search_keyword_plugin !== '' ) {
             $like = '%' . $wpdb->esc_like( $user_search_keyword_plugin ) . '%';
+            $like_with_quotes = '%"' . $wpdb->esc_like( $user_search_keyword_plugin ) . '"%';
     
             // Serialized data mein bhi search
             $where[] = '(plugin_name LIKE %s OR email LIKE %s OR domain LIKE %s OR extra_details LIKE %s)';
             
-            array_push( $params, $like, $like, $like, $like );
+            array_push( $params, $like, $like, $like, $like_with_quotes );
         }
         if ( $user_filter !== '' ) {
-            $like = '%' . $wpdb->esc_like( $user_filter ) . '%';
-            $where[] = 'plugin_name LIKE %s';
-            $params[] = $like;
+            // Use exact match with TRIM to distinguish between "cool timeline" and "cool timeline pro"
+            $where[] = 'TRIM(plugin_name) = %s';
+            $params[] = trim($user_filter);
         }
 
         $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
