@@ -22,6 +22,8 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
+            add_action('wp_ajax_cpfm_get_top_plugins', array($this, 'cpfm_get_top_plugins'));
+            add_action('wp_ajax_cpfm_get_overview_data', array($this, 'cpfm_get_overview_data'));
             add_action('admin_init', array($this, 'cpfm_download_csv') );
             add_action('rest_api_init', array($this,'cpfm_site_register_rest_routes'));
 
@@ -402,6 +404,38 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             }
 
             die(json_encode($response));
+        }
+
+        public function cpfm_get_top_plugins() {
+            check_ajax_referer('cpfm_top_plugins_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 5;
+            $status_filter = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'total';
+            $time_filter = isset($_POST['time']) ? sanitize_text_field($_POST['time']) : 'all-time';
+            $plugin_filter = isset($_POST['cat_filter']) ? sanitize_text_field($_POST['cat_filter']) : '';
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            $top_plugins = CPFM_Data_Overview::get_top_plugins_data($limit, $status_filter, $time_filter, $plugin_filter);
+            $html = CPFM_Data_Overview::render_top_plugins_rows($top_plugins);
+            
+            wp_send_json_success($html);
+        }
+
+        public function cpfm_get_overview_data() {
+            check_ajax_referer('cpfm_overview_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            CPFM_Data_Overview::ajax_get_overview_data();
         }
 
         function cpfm_add_menu(){
