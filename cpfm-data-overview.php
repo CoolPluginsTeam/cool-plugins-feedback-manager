@@ -187,10 +187,6 @@ class CPFM_Data_Overview {
             return $cached_data;
         }
         
-        // Increase memory limit temporarily for processing
-        if (function_exists('ini_set')) {
-            @ini_set('memory_limit', '512M');
-        }
         
         $batch_size = 2500;
         $offset = 0;
