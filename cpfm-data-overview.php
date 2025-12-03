@@ -426,6 +426,11 @@ class CPFM_Data_Overview {
         
         $records = array_slice($all_filtered_data, $offset, $per_page);
         
+        // Get latest version for tooltip
+        $versions_cache_key = 'cpfm_versions_' . sanitize_title($plugin_filter);
+        $sorted_versions = get_transient($versions_cache_key);
+        $latest_version = ($sorted_versions && is_array($sorted_versions)) ? end($sorted_versions) : '';
+        
         $html_rows = '';
         
         if (empty($records)) {
@@ -452,16 +457,18 @@ class CPFM_Data_Overview {
                     <span class="dashicons dashicons-info cp-tooltip-trigger" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; color: #a7aaad; cursor: pointer; position: relative;">
                         <span class="cp-tooltip-box" style="display: none; position: absolute; bottom: 130%%; left: 50%%; transform: translateX(-50%%); background: #fff; color: #000; padding: 10px; border-radius: 4px; font-size: 12px; width: max-content; min-width: 160px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2); line-height: 1.5; text-align: left; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen-Sans, Ubuntu, Cantarell, \'Helvetica Neue\', sans-serif;">
                             <span style="display: block; margin-bottom: 4px;">Started Version: <strong style="color: #000;">%s</strong></span>
-                            <span style="display: block;">Updated Version: <strong style="color: #000;">%s</strong></span>
+                            <span style="display: block; margin-bottom: 4px;">Updated Version: <strong style="color: #000;">%s</strong></span>
+                            <span style="display: block;">Latest Version: <strong style="color: #000;">%s</strong></span>
                             <span style="position: absolute; top: 100%%; left: 50%%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1d2327 transparent transparent transparent;"></span>
                         </span>
                     </span>',
                     $badge_color,
                     $user_type,
                     $status_color,
-                    strtolower($status_text),
+                    $status_text,
                     esc_html($initial_ver),
-                    esc_html($current_ver)
+                    esc_html($current_ver),
+                    esc_html($latest_version)
                 );
                 
                 $html_rows .= sprintf(
@@ -1137,7 +1144,7 @@ class CPFM_Data_Overview {
                                 }
                             },
                             scales: {
-                                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                                y: { beginAtZero: true }
                             }
                         }
                     });
@@ -1196,7 +1203,7 @@ class CPFM_Data_Overview {
                                     }
                                 },
                                 scales: {
-                                    y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                                    y: { beginAtZero: true },
                                     x: { ticks: { maxRotation: 45, minRotation: 0 } }
                                 }
                             }
