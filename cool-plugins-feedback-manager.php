@@ -24,7 +24,9 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
             add_action('wp_ajax_cpfm_get_top_plugins', array($this, 'cpfm_get_top_plugins'));
             add_action('wp_ajax_cpfm_get_overview_data', array($this, 'cpfm_get_overview_data'));
+            add_action('wp_ajax_cpfm_get_user_table_data', array($this, 'cpfm_get_user_table_data'));
             add_action('admin_init', array($this, 'cpfm_download_csv') );
+            add_action('admin_init', array($this, 'cpfm_download_user_csv') );
             add_action('rest_api_init', array($this,'cpfm_site_register_rest_routes'));
 
         }
@@ -161,6 +163,54 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
 
             fclose($output);
             exit; 
+        }
+
+        public function cpfm_download_user_csv() {
+            if (!isset($_REQUEST['export_user_data']) || $_REQUEST['export_user_data'] !== 'Export User Data') {
+                return;
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            // Fetch all data for CSV (no pagination limits)
+            $plugin_filter = isset($_REQUEST['cat_filter']) ? sanitize_text_field($_REQUEST['cat_filter']) : '';
+            $status_filter = isset($_REQUEST['status_filter']) ? sanitize_text_field($_REQUEST['status_filter']) : '';
+            $user_type_filter = isset($_REQUEST['user_type_filter']) ? sanitize_text_field($_REQUEST['user_type_filter']) : '';
+            
+            // Re-use the logic from cpfm_get_user_table_data but adapted for returning array instead of JSON
+            // To avoid duplicating logic, we can add a method in CPFM_Data_Overview to fetch data array
+            $data = CPFM_Data_Overview::get_user_table_data_array($plugin_filter, -1, 0, $status_filter, $user_type_filter);
+            
+            if (empty($data)) {
+                wp_die('No data to export.');
+            }
+            
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="user-data-export.csv"');
+            $output = fopen('php://output', 'w');
+            
+            // Headers
+            fputcsv($output, array('Site URL', 'Email', 'Plugin Version', 'Initial Version', 'Status', 'User Type', 'Activation Date', 'Deactivation Date'));
+            
+            foreach ($data as $row) {
+                fputcsv($output, array(
+                    $row['domain'],
+                    $row['email'],
+                    $row['plugin_version'],
+                    $row['plugin_initial'],
+                    $row['status_text'],
+                    $row['user_type'],
+                    $row['update_date'],
+                    $row['deactivation_date']
+                ));
+            }
+            
+            fclose($output);
+            exit;
         }
     
         public static function cpfm_get_extra_data() {
@@ -436,6 +486,18 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             require_once CPFM_DIR . 'cpfm-data-overview.php';
             
             CPFM_Data_Overview::ajax_get_overview_data();
+        }
+
+        public function cpfm_get_user_table_data() {
+            check_ajax_referer('cpfm_user_table_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            CPFM_Data_Overview::ajax_get_user_table_data();
         }
 
         function cpfm_add_menu(){

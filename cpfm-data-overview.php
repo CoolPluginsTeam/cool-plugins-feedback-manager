@@ -266,6 +266,218 @@ class CPFM_Data_Overview {
         return $all_data;
     }
 
+    public static function get_user_table_data_array($plugin_filter, $limit = 10, $offset = 0, $status_filter = '', $user_type_filter = '') {
+        global $wpdb;
+        
+        $tablename = $wpdb->base_prefix . 'cpfm_site_info';
+        $feedback_table = $wpdb->base_prefix . 'cpfm_feedbacks';
+        
+        // Build WHERE conditions
+        $conditions = array("si.domain LIKE 'https://%'"); // Check only https
+        $params = array();
+        
+        // Exclude test/local domains
+        $excluded_domains = array('localhost', 'test', 'staging', 'dev', '.local', '.test', 'tastewp.com', '.instawp.co', '.instawp.xyz');
+        foreach ($excluded_domains as $domain) {
+            $conditions[] = "si.domain NOT LIKE %s";
+            $params[] = '%' . $domain . '%';
+        }
+        
+        if (!empty($plugin_filter)) {
+            $conditions[] = "si.plugin_name = %s";
+            $params[] = trim($plugin_filter);
+        }
+        
+        // Generate cache key based on all filters
+        $cache_key = 'cpfm_user_data_' . $plugin_filter;
+        
+        // Try to get from cache first
+        $processed_data = get_transient($cache_key);
+        
+        if ($processed_data === false) {
+            
+            $where_sql = 'WHERE ' . implode(' AND ', $conditions);
+            
+            // Select necessary columns
+            $query = "SELECT si.domain, si.email, si.plugin_version, si.plugin_initial, si.update_date, fb.deactivation_date 
+                      FROM {$tablename} si 
+                      LEFT JOIN {$feedback_table} fb ON si.site_id = fb.site_id 
+                      {$where_sql}";
+                      
+            $records = $wpdb->get_results($wpdb->prepare($query, ...$params), ARRAY_A);
+            
+            // Prepare version ranking
+            $versions_cache_key = 'cpfm_versions_' . sanitize_title($plugin_filter);
+            $sorted_versions = get_transient($versions_cache_key);
+            
+            if ($sorted_versions === false) {
+                $v_query = "SELECT DISTINCT plugin_version FROM {$tablename}";
+                $v_params = array();
+                if (!empty($plugin_filter)) {
+                    $v_query .= " WHERE plugin_name = %s";
+                    $v_params[] = trim($plugin_filter);
+                }
+                $unsorted_versions = $wpdb->get_col(!empty($v_params) ? $wpdb->prepare($v_query, $v_params) : $v_query);
+                usort($unsorted_versions, 'version_compare');
+                $sorted_versions = array_values($unsorted_versions);
+                set_transient($versions_cache_key, $sorted_versions, 60 * MINUTE_IN_SECONDS);
+            }
+            
+            $latest_version = end($sorted_versions);
+            $processed_data = array();
+            
+            foreach ($records as $row) {
+                $current_ver = $row['plugin_version'];
+                $initial_ver = $row['plugin_initial'];
+                
+                // Calculate Updates
+                $current_idx = array_search($current_ver, $sorted_versions);
+                $initial_idx = array_search($initial_ver, $sorted_versions);
+                
+                if ($current_idx !== false && $initial_idx !== false) {
+                    $updates_count = $current_idx - $initial_idx;
+                } else {
+                    $updates_count = ($current_ver === $initial_ver) ? 0 : 1;
+                }
+                
+                // Determine Activation Status
+                $is_activated = true;
+                if (!empty($row['deactivation_date']) && strtotime($row['update_date']) <= strtotime($row['deactivation_date'])) {
+                    $is_activated = false;
+                }
+                
+                $status_text = $is_activated ? 'Activated' : 'Deactivated';
+                
+                // Determine User Type
+                $user_type = 'New';
+                if ($updates_count >= 5) {
+                    $user_type = 'Old';
+                } elseif ($updates_count > 0) {
+                    $user_type = 'Medium';
+                } else {
+                    if ($initial_ver !== $latest_version && version_compare($initial_ver, $latest_version, '<')) {
+                        $user_type = 'No Updates';
+                    }
+                }
+                
+                // Apply filters - Moved after cache retrieval
+
+                
+                $row['status_text'] = $status_text;
+                $row['user_type'] = $user_type;
+                $row['is_activated'] = $is_activated;
+                
+                $processed_data[] = $row;
+            }
+            
+            // Cache the processed data (unfiltered) for 1 hour
+            set_transient($cache_key, $processed_data, 60 * MINUTE_IN_SECONDS);
+        }
+
+        // Filter data if filters are active
+        if (!empty($status_filter) || !empty($user_type_filter)) {
+            $filtered_data = array();
+            foreach ($processed_data as $row) {
+                 $status_text = isset($row['status_text']) ? $row['status_text'] : '';
+                 $user_type = isset($row['user_type']) ? $row['user_type'] : '';
+
+                 if (!empty($status_filter) && strtolower($status_filter) !== strtolower($status_text)) {
+                    continue;
+                 }
+                 
+                 if (!empty($user_type_filter) && strtolower($user_type_filter) !== strtolower($user_type)) {
+                    if ($user_type_filter === 'no-updates' && $user_type === 'No Updates') {
+                        // match
+                    } elseif (strtolower($user_type_filter) !== strtolower($user_type)) {
+                        continue;
+                    }
+                 }
+                 $filtered_data[] = $row;
+            }
+            $processed_data = $filtered_data;
+        }
+        
+        // If limit is -1, return all (for CSV)
+        if ($limit == -1) {
+            return $processed_data;
+        }
+        
+        // Pagination Slice
+        return array_slice($processed_data, $offset, $limit);
+    }
+
+    public static function ajax_get_user_table_data() {
+        global $wpdb;
+        
+        $plugin_filter = isset($_POST['cat_filter']) ? sanitize_text_field($_POST['cat_filter']) : '';
+        $status_filter = isset($_POST['status_filter']) ? sanitize_text_field($_POST['status_filter']) : '';
+        $user_type_filter = isset($_POST['user_type_filter']) ? sanitize_text_field($_POST['user_type_filter']) : '';
+        
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $per_page = 10;
+        $offset = ($page - 1) * $per_page;
+        
+
+        
+        $all_filtered_data = self::get_user_table_data_array($plugin_filter, -1, 0, $status_filter, $user_type_filter);
+        $total_records = count($all_filtered_data);
+        $total_pages = ceil($total_records / $per_page);
+        
+        $records = array_slice($all_filtered_data, $offset, $per_page);
+        
+        $html_rows = '';
+        
+        if (empty($records)) {
+            $html_rows = '<tr><td colspan="3" style="text-align:center; padding: 20px;">No data found.</td></tr>';
+        } else {
+            foreach ($records as $row) {
+                $domain = $row['domain'];
+                $email = $row['email'];
+                $initial_ver = $row['plugin_initial'];
+                $user_type = $row['user_type'];
+                $status_text = $row['status_text'];
+                $is_activated = $row['is_activated'];
+                
+                $status_color = $is_activated ? '#22c55e' : '#ef4444'; 
+                
+                $badge_color = '#3b82f6'; // Blue (New)
+                if ($user_type === 'Old') $badge_color = '#a855f7';
+                elseif ($user_type === 'Medium') $badge_color = '#f59e0b';
+                elseif ($user_type === 'No Updates') $badge_color = '#6b7280';
+                
+                $status_display = sprintf(
+                    '<span style="font-weight: 600; color: %s;">%s</span> <span style="color: #646970;">(%s, <span style="color: %s;">%s</span>)</span>',
+                    $badge_color,
+                    $user_type,
+                    esc_html($initial_ver),
+                    $status_color,
+                    strtolower($status_text)
+                );
+                
+                $html_rows .= sprintf(
+                    '<tr>
+                        <td style="padding: 12px;"><a href="%s" target="_blank" style="text-decoration: none; color: #2271b1;">%s</a></td>
+                        <td style="padding: 12px;">%s</td>
+                        <td style="padding: 12px;">%s</td>
+                    </tr>',
+                    esc_url($domain),
+                    esc_html($domain),
+                    esc_html($email),
+                    $status_display
+                );
+            }
+        }
+        
+        wp_send_json_success(array(
+            'html' => $html_rows,
+            'pagination' => array(
+                'current_page' => $page,
+                'total_pages' => $total_pages,
+                'total_records' => $total_records
+            )
+        ));
+    }
+
     public static function ajax_get_overview_data() {
         global $wpdb;
         
@@ -674,6 +886,54 @@ class CPFM_Data_Overview {
                             (<span id="insight-total-sites">...</span> sites analyzed)
                         </span>
                     </h2>
+
+                    <!-- User Details Table -->
+                    
+                    <div id="user-details-container" style="margin-bottom: 30px; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #1d2327;">User Details</h3>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <form method="post" id="user-export-form" style="margin: 0;">
+                                    <input type="hidden" name="export_user_data" value="Export User Data">
+                                    <input type="hidden" name="cat_filter" id="export-cat-filter" value="">
+                                    <input type="hidden" name="status_filter" id="export-status-filter" value="">
+                                    <input type="hidden" name="user_type_filter" id="export-user-type-filter" value="">
+                                    <input type="submit" class="button button-secondary" value="Export CSV">
+                                </form>
+                                
+                                <select id="user-status-filter" style="font-size: 13px;">
+                                    <option value="">All Status</option>
+                                    <option value="activated">Activated</option>
+                                    <option value="deactivated">Deactivated</option>
+                                </select>
+                                
+                                <select id="user-type-filter" style="font-size: 13px;">
+                                    <option value="">All Users</option>
+                                    <option value="new">New</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="old">Old</option>
+                                    <option value="no-updates">No Updates</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 12px;">Site Url</th>
+                                    <th style="padding: 12px;">Email</th>
+                                    <th style="padding: 12px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-tbody">
+                                <tr><td colspan="3" style="text-align:center;">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                        <div id="user-table-pagination" style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 5px;">
+                            <!-- Pagination controls -->
+                        </div>
+                    </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr; gap: 30px; margin-bottom: 30px;">
                         <!-- Plugin Version Distribution -->
@@ -780,11 +1040,13 @@ class CPFM_Data_Overview {
                 
                 // Load initial data
                 loadOverviewData();
+                loadUserTable(1);
                 
                 // Handle Filter Form
                 $('#overview-filter-form').on('submit', function(e) {
                     e.preventDefault();
                     loadOverviewData();
+                    loadUserTable(1);
                     // Update URL without reload
                     var params = $(this).serialize();
                     var newUrl = window.location.pathname + '?' + params;
@@ -943,6 +1205,90 @@ class CPFM_Data_Overview {
                          $('#insights-section').show();
                     }
                 }
+                
+                // User Table Functions
+                var currentUserPage = 1;
+                
+                function loadUserTable(page) {
+                    currentUserPage = page || 1;
+                    var plugin_filter = $('#cat-filter').val();
+                    var status_filter = $('#user-status-filter').val();
+                    var user_type_filter = $('#user-type-filter').val();
+                    
+                    if (plugin_filter === '') {
+                        $('#user-details-container').hide();
+                        return;
+                    }
+                    $('#user-details-container').show();
+
+                    // Update export form fields
+                    $('#export-cat-filter').val(plugin_filter);
+                    $('#export-status-filter').val(status_filter);
+                    $('#export-user-type-filter').val(user_type_filter);
+                    
+                    $('#user-table-tbody').css('opacity', '0.5');
+                    
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'cpfm_get_user_table_data',
+                            page: currentUserPage,
+                            cat_filter: plugin_filter,
+                            status_filter: status_filter,
+                            user_type_filter: user_type_filter,
+                            nonce: '<?php echo wp_create_nonce("cpfm_user_table_nonce"); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $('#user-table-tbody').html(response.data.html);
+                                renderPagination(response.data.pagination);
+                            } else {
+                                $('#user-table-tbody').html('<tr><td colspan="3" style="padding:20px; text-align:center;">Error loading data.</td></tr>');
+                            }
+                            $('#user-table-tbody').css('opacity', '1');
+                        },
+                        error: function() {
+                            $('#user-table-tbody').html('<tr><td colspan="3" style="padding:20px; text-align:center;">Request failed.</td></tr>');
+                            $('#user-table-tbody').css('opacity', '1');
+                        }
+                    });
+                }
+                
+                // Filter change handlers
+                $('#user-status-filter, #user-type-filter').on('change', function() {
+                    loadUserTable(1);
+                });
+                
+                function renderPagination(pagination) {
+                    var html = '';
+                    var total = parseInt(pagination.total_pages);
+                    var current = parseInt(pagination.current_page);
+                    
+                    if (total <= 1) {
+                        $('#user-table-pagination').empty();
+                        return;
+                    }
+                    
+                    var prevDisabled = (current === 1) ? 'disabled' : '';
+                    var nextDisabled = (current === total) ? 'disabled' : '';
+                    var prevStyle = (current === 1) ? 'opacity: 0.5; cursor: not-allowed;' : 'cursor: pointer;';
+                    var nextStyle = (current === total) ? 'opacity: 0.5; cursor: not-allowed;' : 'cursor: pointer;';
+                    
+                    html += '<button type="button" class="button user-table-page-btn" data-page="' + (current - 1) + '" ' + prevDisabled + ' style="' + prevStyle + '">Previous</button>';
+                    html += '<span style="display: inline-flex; align-items: center; padding: 0 10px; font-weight: 600; color: #646970;">Page ' + current + ' of ' + total + '</span>';
+                    html += '<button type="button" class="button user-table-page-btn" data-page="' + (current + 1) + '" ' + nextDisabled + ' style="' + nextStyle + '">Next</button>';
+                    
+                    $('#user-table-pagination').html(html);
+                }
+                
+                $(document).on('click', '.user-table-page-btn', function() {
+                    if (!$(this).attr('disabled')) {
+                        var page = $(this).data('page');
+                        loadUserTable(page);
+                    }
+                });
+
             });
             </script>
         </div>
