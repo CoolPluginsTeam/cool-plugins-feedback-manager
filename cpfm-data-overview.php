@@ -330,16 +330,6 @@ class CPFM_Data_Overview {
                 $current_ver = $row['plugin_version'];
                 $initial_ver = $row['plugin_initial'];
                 
-                // Calculate Updates
-                $current_idx = array_search($current_ver, $sorted_versions);
-                $initial_idx = array_search($initial_ver, $sorted_versions);
-                
-                if ($current_idx !== false && $initial_idx !== false) {
-                    $updates_count = $current_idx - $initial_idx;
-                } else {
-                    $updates_count = ($current_ver === $initial_ver) ? 0 : 1;
-                }
-                
                 // Determine Activation Status
                 $is_activated = true;
                 if (!empty($row['deactivation_date']) && strtotime($row['update_date']) <= strtotime($row['deactivation_date'])) {
@@ -350,13 +340,24 @@ class CPFM_Data_Overview {
                 
                 // Determine User Type
                 $user_type = 'New';
-                if ($updates_count >= 5) {
-                    $user_type = 'Old';
-                } elseif ($updates_count > 0) {
-                    $user_type = 'Medium';
+                $total_versions = count($sorted_versions);
+                $initial_idx = array_search($initial_ver, $sorted_versions);
+
+                if ($initial_idx !== false) {
+                    $position_from_end = $total_versions - 1 - $initial_idx;
+
+                    if ($position_from_end >= 5) {
+                        $user_type = 'Old';
+                    } elseif ($position_from_end >= 2) {
+                        $user_type = 'Medium';
+                    }
+
+                    if ($user_type !== 'Old' && $current_ver === $initial_ver && $current_ver !== $latest_version) {
+                        $user_type = 'Plugin not updated';
+                    }
                 } else {
-                    if ($initial_ver !== $latest_version && version_compare($initial_ver, $latest_version, '<')) {
-                        $user_type = 'No Updates';
+                    if (!empty($sorted_versions) && version_compare($initial_ver, $sorted_versions[0], '<')) {
+                        $user_type = 'Old';
                     }
                 }
                 
