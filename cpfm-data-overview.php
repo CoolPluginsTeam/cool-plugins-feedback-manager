@@ -352,7 +352,7 @@ class CPFM_Data_Overview {
                         $user_type = 'Medium';
                     }
 
-                    if ($user_type !== 'Old' && $current_ver === $initial_ver && $current_ver !== $latest_version) {
+                    if ($current_ver === $initial_ver && $current_ver !== $latest_version) {
                         $user_type = 'Plugin not updated';
                     }
                 } else {
@@ -435,6 +435,7 @@ class CPFM_Data_Overview {
                 $domain = $row['domain'];
                 $email = $row['email'];
                 $initial_ver = $row['plugin_initial'];
+                $current_ver = isset($row['plugin_version']) ? $row['plugin_version'] : '';
                 $user_type = $row['user_type'];
                 $status_text = $row['status_text'];
                 $is_activated = $row['is_activated'];
@@ -447,12 +448,20 @@ class CPFM_Data_Overview {
                 elseif ($user_type === 'No Updates') $badge_color = '#6b7280';
                 
                 $status_display = sprintf(
-                    '<span style="font-weight: 600; color: %s;">%s</span> <span style="color: #646970;">(%s, <span style="color: %s;">%s</span>)</span>',
+                    '<span style="font-weight: 600; color: %s;">%s</span> <span style="color: #646970;">(<span style="color: %s;">%s</span>)</span> 
+                    <span class="dashicons dashicons-info cp-tooltip-trigger" style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; color: #a7aaad; cursor: pointer; position: relative;">
+                        <span class="cp-tooltip-box" style="display: none; position: absolute; bottom: 130%%; left: 50%%; transform: translateX(-50%%); background: #fff; color: #000; padding: 10px; border-radius: 4px; font-size: 12px; width: max-content; min-width: 160px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2); line-height: 1.5; text-align: left; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen-Sans, Ubuntu, Cantarell, \'Helvetica Neue\', sans-serif;">
+                            <span style="display: block; margin-bottom: 4px;">Started Version: <strong style="color: #000;">%s</strong></span>
+                            <span style="display: block;">Updated Version: <strong style="color: #000;">%s</strong></span>
+                            <span style="position: absolute; top: 100%%; left: 50%%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1d2327 transparent transparent transparent;"></span>
+                        </span>
+                    </span>',
                     $badge_color,
                     $user_type,
-                    esc_html($initial_ver),
                     $status_color,
-                    strtolower($status_text)
+                    strtolower($status_text),
+                    esc_html($initial_ver),
+                    esc_html($current_ver)
                 );
                 
                 $html_rows .= sprintf(
@@ -1287,6 +1296,27 @@ class CPFM_Data_Overview {
                     if (!$(this).attr('disabled')) {
                         var page = $(this).data('page');
                         loadUserTable(page);
+                    }
+                });
+
+                // Tooltip interaction
+                $(document).on('click', '.cp-tooltip-trigger', function(e) {
+                    e.stopPropagation();
+                    var $tooltip = $(this).find('.cp-tooltip-box');
+                    
+                    // Close others
+                    $('.cp-tooltip-box').not($tooltip).fadeOut(100);
+                    
+                    if ($tooltip.is(':visible')) {
+                        $tooltip.fadeOut(100);
+                    } else {
+                        $tooltip.fadeIn(100);
+                    }
+                });
+                
+                $(document).on('click', function(e) {
+                    if (!$(e.target).closest('.cp-tooltip-trigger').length) {
+                        $('.cp-tooltip-box').fadeOut(100);
                     }
                 });
 
