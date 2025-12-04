@@ -387,7 +387,7 @@ class CPFM_Data_Overview {
                  }
                  
                  if (!empty($user_type_filter) && strtolower($user_type_filter) !== strtolower($user_type)) {
-                    if ($user_type_filter === 'no-updates' && $user_type === 'No Updates') {
+                    if ($user_type_filter === 'no-updates' && $user_type === 'Plugin not updated') {
                         // match
                     } elseif (strtolower($user_type_filter) !== strtolower($user_type)) {
                         continue;
@@ -450,7 +450,7 @@ class CPFM_Data_Overview {
                 $badge_color = '#3b82f6'; // Blue (New)
                 if ($user_type === 'Old') $badge_color = '#a855f7';
                 elseif ($user_type === 'Medium') $badge_color = '#f59e0b';
-                elseif ($user_type === 'No Updates') $badge_color = '#6b7280';
+                elseif ($user_type === 'Plugin not updated') $badge_color = '#6b7280';
                 
                 $status_display = sprintf(
                     '<span style="font-weight: 600; color: %s;">%s</span> <span style="color: #646970;">(<span style="color: %s;">%s</span>)</span> 
@@ -930,7 +930,7 @@ class CPFM_Data_Overview {
                                     <option value="new">New</option>
                                     <option value="medium">Medium</option>
                                     <option value="old">Old</option>
-                                    <option value="no-updates">No Updates</option>
+                                    <option value="no-updates">Plugin not updated</option>
                                 </select>
                             </div>
                         </div>
