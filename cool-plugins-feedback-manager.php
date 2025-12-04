@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Cool Plugins Feedback Manager
- * Version: 1.3.2
+ * Version: 1.3.3
  * Author: Cool Plugins Team
  * Description: This plugin manage all feedback data received from users who deactivate 'Cool Plugins'.
  */
