@@ -329,7 +329,9 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`server_info` TEXT,
 			`deactivation_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			`site_id` varchar(250),
-			PRIMARY KEY (id)
+			PRIMARY KEY (id),
+			KEY site_id (site_id),
+			KEY plugin_name (plugin_name)
 		) CHARACTER SET utf8 COLLATE utf8_general_ci;";
 		 
 		dbDelta($sql);
@@ -361,7 +363,9 @@ function wp_insert_rows($row_arrays = array(), $wp_table_name = "", $update = fa
 			`created_date` timestamp DEFAULT CURRENT_TIMESTAMP,
         	`update_date` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
-			UNIQUE KEY site_id (site_id)
+			UNIQUE KEY site_id (site_id),
+			KEY plugin_name (plugin_name),
+			KEY update_date (update_date)
 		) CHARACTER SET utf8 COLLATE utf8_general_ci;";
 		 
 		dbDelta($sql);
