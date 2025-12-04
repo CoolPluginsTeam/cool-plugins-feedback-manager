@@ -22,7 +22,11 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
             add_action( 'rest_api_init', array( $this, 'cpfm_register_feedback_api') );
             add_action('wp_ajax_cpfm_get_extra_data', array($this,'cpfm_get_extra_data'));
+            add_action('wp_ajax_cpfm_get_top_plugins', array($this, 'cpfm_get_top_plugins'));
+            add_action('wp_ajax_cpfm_get_overview_data', array($this, 'cpfm_get_overview_data'));
+            add_action('wp_ajax_cpfm_get_user_table_data', array($this, 'cpfm_get_user_table_data'));
             add_action('admin_init', array($this, 'cpfm_download_csv') );
+            add_action('admin_init', array($this, 'cpfm_download_user_csv') );
             add_action('rest_api_init', array($this,'cpfm_site_register_rest_routes'));
 
         }
@@ -159,6 +163,54 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
 
             fclose($output);
             exit; 
+        }
+
+        public function cpfm_download_user_csv() {
+            if (!isset($_REQUEST['export_user_data']) || $_REQUEST['export_user_data'] !== 'Export User Data') {
+                return;
+            }
+            
+            if (!current_user_can('manage_options')) {
+                wp_die('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            // Fetch all data for CSV (no pagination limits)
+            $plugin_filter = isset($_REQUEST['cat_filter']) ? sanitize_text_field($_REQUEST['cat_filter']) : '';
+            $status_filter = isset($_REQUEST['status_filter']) ? sanitize_text_field($_REQUEST['status_filter']) : '';
+            $user_type_filter = isset($_REQUEST['user_type_filter']) ? sanitize_text_field($_REQUEST['user_type_filter']) : '';
+            
+            // Re-use the logic from cpfm_get_user_table_data but adapted for returning array instead of JSON
+            // To avoid duplicating logic, we can add a method in CPFM_Data_Overview to fetch data array
+            $data = CPFM_Data_Overview::get_user_table_data_array($plugin_filter, -1, 0, $status_filter, $user_type_filter);
+            
+            if (empty($data)) {
+                wp_die('No data to export.');
+            }
+            
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="user-data-export.csv"');
+            $output = fopen('php://output', 'w');
+            
+            // Headers
+            fputcsv($output, array('Site URL', 'Email', 'Plugin Version', 'Initial Version', 'Status', 'User Type', 'Activation Date', 'Deactivation Date'));
+            
+            foreach ($data as $row) {
+                fputcsv($output, array(
+                    $row['domain'],
+                    $row['email'],
+                    $row['plugin_version'],
+                    $row['plugin_initial'],
+                    $row['status_text'],
+                    $row['user_type'],
+                    $row['update_date'],
+                    $row['deactivation_date']
+                ));
+            }
+            
+            fclose($output);
+            exit;
         }
     
         public static function cpfm_get_extra_data() {
@@ -404,6 +456,50 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             die(json_encode($response));
         }
 
+        public function cpfm_get_top_plugins() {
+            check_ajax_referer('cpfm_top_plugins_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 5;
+            $status_filter = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'total';
+            $time_filter = isset($_POST['time']) ? sanitize_text_field($_POST['time']) : 'all-time';
+            $plugin_filter = isset($_POST['cat_filter']) ? sanitize_text_field($_POST['cat_filter']) : '';
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            $top_plugins = CPFM_Data_Overview::get_top_plugins_data($limit, $status_filter, $time_filter, $plugin_filter);
+            $html = CPFM_Data_Overview::render_top_plugins_rows($top_plugins);
+            
+            wp_send_json_success($html);
+        }
+
+        public function cpfm_get_overview_data() {
+            check_ajax_referer('cpfm_overview_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            CPFM_Data_Overview::ajax_get_overview_data();
+        }
+
+        public function cpfm_get_user_table_data() {
+            check_ajax_referer('cpfm_user_table_nonce', 'nonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized');
+            }
+            
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            
+            CPFM_Data_Overview::ajax_get_user_table_data();
+        }
+
         function cpfm_add_menu(){
 
             $hook = add_menu_page('Cool Plugins Feedback Data', 'Cool Plugins Feedback Manager', 'manage_options', 'cpfm', array($this,'CPFM_feedback_page'), '', 7);
@@ -419,6 +515,17 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             );
 
             add_action("load-".$submenu_hook, array($this, 'cpfm_add_submenu_options'));
+            
+            $data_overview_hook = add_submenu_page(
+                'cpfm',                                
+                'Data Overview',                       
+                'Data Overview',                   
+                'manage_options',                    
+                'cpfm-data-overview',                      
+                array($this, 'cpfm_data_overview_page') 
+            );
+
+            add_action("load-".$data_overview_hook, array($this, 'cpfm_data_overview_options'));
          
         }
         public function cpfm_add_submenu_options() {
@@ -437,6 +544,12 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
            
             new cpfm_list_table;
            
+        }
+
+        public function cpfm_data_overview_options() {
+            // Enqueue Flatpickr scripts/styles for overview page
+            wp_enqueue_style('flatpickr-css', plugin_dir_url(CPFM_FILE) . 'assets/css/flatpickr.min.css', null, '1.0.0');
+            wp_enqueue_script('flatpickr-js', plugin_dir_url(CPFM_FILE) . 'assets/js/flatpickr.min.js', array('jquery'), '1.0.0', true);
         }
         
         function cpfm_add_options(){
@@ -490,6 +603,13 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         
         }
 
+        function cpfm_data_overview_page(){
 
- }
+            require_once CPFM_DIR . 'cpfm-data-overview.php';
+            CPFM_Data_Overview::display_overview_page();
+        
+        }
+
+
+}
  new Cool_Plugins_Feedback_Manager();
