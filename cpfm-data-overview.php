@@ -790,8 +790,8 @@ class CPFM_Data_Overview {
                                 allowInput: true,
                                 onChange: function(selectedDates, dateStr, instance) {
                                     if (selectedDates.length === 2) {
-                                        var fromDate = selectedDates[0].toISOString().split('T')[0];
-                                        var toDate = selectedDates[1].toISOString().split('T')[0];
+                                        var fromDate = instance.formatDate(selectedDates[0], "Y-m-d");
+                                        var toDate = instance.formatDate(selectedDates[1], "Y-m-d");
                                         $('#export_data_date_From').val(fromDate);
                                         $('#export_data_date_to').val(toDate);
                                     }
