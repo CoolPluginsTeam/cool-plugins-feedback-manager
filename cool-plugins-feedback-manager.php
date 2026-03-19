@@ -275,7 +275,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             
         function add_product_to_ticket($ticket_id,$product_name) {
 
-            $product_id;  
+            $product_id = '';  
 
             switch(strtolower($product_name)) {
                 case "conditional-fields-for-elementor-form":
