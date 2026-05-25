@@ -218,8 +218,11 @@ class CPFM_Data_Overview {
             
             // Process and compact data immediately
             foreach ($batch_results as $record) {
-                $server_info = maybe_unserialize($record['server_info']);
-                $extra_details = maybe_unserialize($record['extra_details']);
+                if ( ! function_exists( 'cpfm_decode_payload' ) ) {
+                    require_once dirname( __FILE__ ) . '/cpfm-payload-helper.php';
+                }
+                $server_info   = cpfm_decode_payload( $record['server_info'] );
+                $extra_details = cpfm_decode_payload( $record['extra_details'] );
                 
                 $compact_record = array(
                     'site_id' => $record['site_id'],

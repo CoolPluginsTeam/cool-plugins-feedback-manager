@@ -16,6 +16,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         private $cpfm_current_view;
         function __construct(){
             require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+            require_once CPFM_DIR . 'cpfm-payload-helper.php';
             require_once CPFM_DIR . 'cpfm-feedback-db.php';
 
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
@@ -61,8 +62,8 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             $plugin_name    = sanitize_text_field($request->get_param('plugin_name'));
             $plugin_initial = sanitize_text_field($request->get_param('plugin_initial'));
             $email          = sanitize_email($request->get_param('email'));
-            $extra_details  = serialize($request->get_param('extra_details'));
-            $server_info    = serialize($request->get_param('server_info'));
+            $extra_details  = cpfm_encode_payload_for_storage( $request->get_param( 'extra_details' ) );
+            $server_info    = cpfm_encode_payload_for_storage( $request->get_param( 'server_info' ) );
             $site_id        = sanitize_text_field($request->get_param('site_id'));
             $site_url       = sanitize_text_field($request->get_param('site_url'));
 
@@ -427,8 +428,8 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
                 }
 
                 $data = array(
-                    'server_info'     => isset($_REQUEST['server_info']) ? sanitize_text_field($_REQUEST['server_info']) : '',
-                    'extra_details'   => isset($_REQUEST['extra_details']) ? sanitize_text_field($_REQUEST['extra_details']) : '',
+                    'server_info'     => isset( $_REQUEST['server_info'] ) ? cpfm_encode_payload_for_storage( wp_unslash( $_REQUEST['server_info'] ) ) : '',
+                    'extra_details'   => isset( $_REQUEST['extra_details'] ) ? cpfm_encode_payload_for_storage( wp_unslash( $_REQUEST['extra_details'] ) ) : '',
                     'plugin_version'  => isset($_REQUEST['plugin_version']) ? sanitize_text_field($_REQUEST['plugin_version']) : '',
                     'plugin_name'     => isset($_REQUEST['plugin_name']) ? sanitize_text_field($_REQUEST['plugin_name']) : '',
                     'plugin_initial'  => isset($_REQUEST['plugin_initial']) ? sanitize_text_field($_REQUEST['plugin_initial']) : '',
