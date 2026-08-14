@@ -18,6 +18,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
             require_once CPFM_DIR . 'cpfm-payload-helper.php';
             require_once CPFM_DIR . 'cpfm-feedback-db.php';
+            require_once CPFM_DIR . 'cpfm-fluentcrm.php';
 
             add_action('admin_menu', array($this, 'cpfm_add_menu' ) );
             add_filter('set-screen-option', array( $this, 'cpfm_save_screen_options'), 15, 3);
@@ -122,6 +123,18 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
                     )
                 );
             }
+
+            $fluentcrm = new cpfm_fluentcrm();
+            $fluentcrm->sync_contact(
+                array(
+                    'email'          => $email,
+                    'plugin_name'    => $site_info['plugin_name'],
+                    'plugin_version' => $site_info['plugin_version'],
+                    'plugin_initial' => $site_info['plugin_initial'],
+                    'domain'         => $site_url,
+                    'data_source'    => 'opt_in',
+                )
+            );
 
             return new WP_REST_Response(array(
                 'status' => 'success',
@@ -243,37 +256,6 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             return $response->body; 
         }
 
-        function send_deactivation_feedback_to_fluent_crm($user_email,$user_feedback,$user_domain) {
-
-            $webhook_url = 'https://my.coolplugins.net/?fluentcrm=1&route=contact&hash=e45c3373-30c3-4809-bf03-13b98a61926b';
-        
-            $data = array(
-                'email'      => $user_email,   
-                'first_name' => $user_email,              
-                // 'first_name' => 'feedback',              
-                // 'last_name'  => 'manager',               
-                'feedback'   => $user_feedback,
-                'tag'        => 'Deactivation Feedback', 
-                'user_domain' => $user_domain, 
-            );
-        
-            $response = wp_remote_post($webhook_url, array(
-                'method'    => 'POST',
-                'headers'   => array(
-                    'Content-Type' => 'application/json',
-                ),
-                'body'      => json_encode($data),
-                'sslverify' => true, // Use true in production and false in development
-            ));
-
-            if (is_wp_error($response)) {
-                echo 'Error: ' . $response->get_error_message();
-                return;
-            }
-        
-            $response_body = wp_remote_retrieve_body($response);
-        }        
-            
         function add_product_to_ticket($ticket_id,$product_name) {
 
             $product_id = '';  
@@ -372,8 +354,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
 
                 $body = wp_remote_retrieve_body($response);
                 $data = json_decode($body, true);
-    
-                $this->send_deactivation_feedback_to_fluent_crm($email,$content,$domain);
+
                 if($data['type'] === "new_ticket" && isset($data['ticket_id'])){
                     return $data['ticket_id'];
                 }
@@ -452,6 +433,19 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
                         
                     $response = $DB->cpfm_insert_feedback([$data]);
                 }
+
+                $fluentcrm = new cpfm_fluentcrm();
+                $fluentcrm->sync_contact(
+                    array(
+                        'email'          => $data['email'],
+                        'plugin_name'    => $data['plugin_name'],
+                        'plugin_version' => $data['plugin_version'],
+                        'plugin_initial' => $data['plugin_initial'],
+                        'domain'         => $data['domain'],
+                        'feedback'       => $data['review'],
+                        'data_source'    => 'deactivation',
+                    )
+                );
             }
 
             die(json_encode($response));
