@@ -16,10 +16,10 @@ class cpfm_fluentcrm {
 
 	public function __construct() {
 
-		$this->webhook_url = 'https://my.coolplugins.net/?fluentcrm=1&route=contact&hash=e45c3373-30c3-4809-bf03-13b98a61926b';
+		$this->webhook_url = 'https://my.coolplugins.net/?fluentcrm=1&route=contact&hash=9c657241-c774-45b4-ab89-95a3073b890d';
 		// $this->webhook_url          = 'https://staging22.coolplugins.net/?fluentcrm=1&route=contact&hash=e45c3373-30c3-4809-bf03-13b98a61926b';
 		$this->list_name            = 'Plugin Feedback Data';
-		$this->email_verify_api_key = '15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a';
+		$this->email_verify_api_key = '15f916123f1d123318522dd301f40a8684aa71b40a17ea3000d63abf9522';
 	}
 
 	/**

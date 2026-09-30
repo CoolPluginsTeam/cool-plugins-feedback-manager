@@ -249,7 +249,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         
         function verify_email($email) {
             $client = 
-            new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a49020e6bb9a8e06f9954907474597a');
+            new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a8684aa71b40a17ea3000d63abf9522');
             $quickemailverification = $client->quickemailverification();
             $response = $quickemailverification->verify($email);
         
@@ -290,7 +290,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         
             $username = 'admin';
             // my.coolplugins site password
-            $application_password = 'Dt3i VprH pQaB fHY4 At1V tSLo';
+            $application_password = 'CmGg rvIR aXPy I2P1 f54J nsjh';
 
             // primesite site password
             // $application_password = '40cN dFeU 2Yt8 b41o DhLB LYvt';
