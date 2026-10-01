@@ -248,12 +248,22 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         }
         
         function verify_email($email) {
-            $client = 
-            new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a8684aa71b40a17ea3000d63abf9522');
-            $quickemailverification = $client->quickemailverification();
-            $response = $quickemailverification->verify($email);
-        
-            return $response->body; 
+            try {
+                $client =
+                new QuickEmailVerification\Client('15f916123f1d123318522dd301f40a8684aa71b40a17ea3000d63abf9522');
+                $quickemailverification = $client->quickemailverification();
+                $response = $quickemailverification->verify($email);
+
+                return $response->body;
+            } catch (\Throwable $e) {
+                // e.g. 402 Payment required (credits exhausted), network errors.
+                error_log('CPFM email verification failed: ' . $e->getMessage());
+
+                return array(
+                    'result' => 'error',
+                    'error'  => $e->getMessage(),
+                );
+            }
         }
 
         function add_product_to_ticket($ticket_id,$product_name) {
@@ -339,7 +349,9 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             );
 
             $is_mail_valid = $this->verify_email($email);
-            if($is_mail_valid['result'] === 'valid' && $content !== "N/A"){
+            // Fail open when the verification service itself errors (result === 'error').
+            $email_ok = isset($is_mail_valid['result']) && in_array($is_mail_valid['result'], array('valid', 'error'), true);
+            if($email_ok && $content !== "N/A"){
                 $response = wp_remote_post($webhook_url, array(
                     'method'    => 'POST',
                     'headers'   => array(

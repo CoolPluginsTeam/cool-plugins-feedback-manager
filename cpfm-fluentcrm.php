@@ -47,11 +47,21 @@ class cpfm_fluentcrm {
 
 	public function verify_email( $email ) {
 
-		$client                 = new QuickEmailVerification\Client( $this->email_verify_api_key );
-		$quickemailverification = $client->quickemailverification();
-		$response               = $quickemailverification->verify( $email );
+		try {
+			$client                 = new QuickEmailVerification\Client( $this->email_verify_api_key );
+			$quickemailverification = $client->quickemailverification();
+			$response               = $quickemailverification->verify( $email );
 
-		return $response->body;
+			return $response->body;
+		} catch ( \Throwable $e ) {
+			// e.g. 402 Payment required (credits exhausted), network errors.
+			error_log( 'CPFM email verification failed: ' . $e->getMessage() );
+
+			return array(
+				'result' => 'error',
+				'error'  => $e->getMessage(),
+			);
+		}
 	}
 
 	/**
@@ -71,7 +81,7 @@ class cpfm_fluentcrm {
 
 		$is_mail_valid = $this->verify_email( $email );
 
-		if ( $is_mail_valid['result'] !== 'valid' ) {
+		if ( isset( $is_mail_valid['result'] ) && ! in_array( $is_mail_valid['result'], array( 'valid', 'error' ), true ) ) {
 			return false;
 		}
 
