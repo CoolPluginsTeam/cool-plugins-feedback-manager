@@ -61,34 +61,51 @@ class cpfm_list_table extends CPFM_WP_List_Table
             $tablename = $wpdb->base_prefix . ($this->view === 'insights' ? 'cpfm_site_info' : 'cpfm_feedbacks');
         
             // $cats = $wpdb->get_results("SELECT * FROM $tablename GROUP BY plugin_name", ARRAY_A);
-            $cache_key = 'cpfm_plugin_names_' . ($this->view === 'insights' ? 'insights' : 'main');
-
-            $cats = get_transient($cache_key);
-            if ($cats === false) {
-                $cats = $wpdb->get_col("
-                    SELECT DISTINCT TRIM(plugin_name) as plugin_name
-                    FROM {$tablename}
-                    WHERE plugin_name IS NOT NULL AND plugin_name <> ''
-                    ORDER BY plugin_name ASC
-                ");
-                set_transient($cache_key, $cats, 60 * MINUTE_IN_SECONDS);
+            // value => label. One entry per plugin: old and new names are merged by the resolver.
+            $cat_options = array();
+            if (class_exists('CPFM_Plugin_Resolver')) {
+                $cat_options = CPFM_Plugin_Resolver::filter_options($tablename);
             }
-        
-            if ($cats) {
+
+            if (empty($cat_options)) {
+                // Resolver missing or returned nothing: previous behaviour.
+                $cache_key = 'cpfm_plugin_names_' . ($this->view === 'insights' ? 'insights' : 'main');
+
+                $cats = get_transient($cache_key);
+                if ($cats === false) {
+                    $cats = $wpdb->get_col("
+                        SELECT DISTINCT TRIM(plugin_name) as plugin_name
+                        FROM {$tablename}
+                        WHERE plugin_name IS NOT NULL AND plugin_name <> ''
+                        ORDER BY plugin_name ASC
+                    ");
+                    set_transient($cache_key, $cats, 60 * MINUTE_IN_SECONDS);
+                }
+
+                foreach ((array) $cats as $plugin_name) {
+                    $plugin_name_trimmed = trim($plugin_name);
+                    $cat_options[$plugin_name_trimmed] = ucwords(strtolower($plugin_name_trimmed));
+                }
+            }
+
+            if ($cat_options) {
                 ?>
                 <select name="cat-filter" class="ewc-filter-cat">
                     <option value="">All Plugins</option>
-                    <?php 
+                    <?php
                     $selected_filter = isset($_REQUEST['cat-filter']) ? trim($_REQUEST['cat-filter']) : '';
-                    foreach ($cats as $plugin_name) :
-                        $plugin_name_trimmed = trim($plugin_name);
-                        $selected = ($selected_filter === $plugin_name_trimmed) ? ' selected="selected"' : '';
+                    // An old name in the URL selects the plugin's current entry.
+                    if ($selected_filter !== '' && class_exists('CPFM_Plugin_Resolver')) {
+                        $selected_filter = CPFM_Plugin_Resolver::canonical_filter($selected_filter);
+                    }
+                    foreach ($cat_options as $option_value => $option_label) :
+                        $selected = (strcasecmp((string) $selected_filter, (string) $option_value) === 0) ? ' selected="selected"' : '';
                     ?>
-                    <option value="<?php echo esc_attr($plugin_name_trimmed); ?>" <?php echo $selected; ?>>
-                        <?php echo esc_html(ucwords(strtolower($plugin_name_trimmed))); ?>
+                    <option value="<?php echo esc_attr($option_value); ?>" <?php echo $selected; ?>>
+                        <?php echo esc_html($option_label); ?>
                         </option>
                     <?php endforeach; ?>
-                </select> 
+                </select>
                 <label for="dateRange">Filter by Date:</label>
                 <input type="text" id="dateRange" placeholder="Select date range" style="padding: 4px; width: 200px; font-size: 12px;" value="<?php 
                     $from = $_REQUEST['export_data_date_From'] ?? '';
@@ -278,8 +295,18 @@ class cpfm_list_table extends CPFM_WP_List_Table
         $user_filter = isset($_REQUEST['cat-filter']) ? wp_unslash(trim($_REQUEST['cat-filter'])) : '';
         if (!empty($user_filter)) {
             // Use exact match with TRIM to distinguish between "cool timeline" and "cool timeline pro"
-            $conditions[] = 'TRIM(plugin_name) = %s';
-            $params[] = trim($user_filter);
+            $plugin_clause = class_exists('CPFM_Plugin_Resolver')
+                ? CPFM_Plugin_Resolver::filter_clause('plugin_name', $user_filter, $table_name, true)
+                : array('sql' => '', 'params' => array());
+
+            if ($plugin_clause['sql'] !== '') {
+                // Matches the plugin under its current name and every old name.
+                $conditions[] = $plugin_clause['sql'];
+                $params = array_merge($params, $plugin_clause['params']);
+            } else {
+                $conditions[] = 'TRIM(plugin_name) = %s';
+                $params[] = trim($user_filter);
+            }
         }
     
        
@@ -347,8 +374,18 @@ class cpfm_list_table extends CPFM_WP_List_Table
         }
         if ( $user_filter !== '' ) {
             // Use exact match with TRIM to distinguish between "cool timeline" and "cool timeline pro"
-            $where[] = 'TRIM(plugin_name) = %s';
-            $params[] = trim($user_filter);
+            $plugin_clause = class_exists('CPFM_Plugin_Resolver')
+                ? CPFM_Plugin_Resolver::filter_clause('plugin_name', $user_filter, $table_name, true)
+                : array('sql' => '', 'params' => array());
+
+            if ($plugin_clause['sql'] !== '') {
+                // Matches the plugin under its current name and every old name.
+                $where[] = $plugin_clause['sql'];
+                $params = array_merge($params, $plugin_clause['params']);
+            } else {
+                $where[] = 'TRIM(plugin_name) = %s';
+                $params[] = trim($user_filter);
+            }
         }
 
         $date_column = ($this->view === 'insights') ? 'update_date' : 'deactivation_date';
@@ -444,7 +481,15 @@ class cpfm_list_table extends CPFM_WP_List_Table
                            return $item->plugin_version;
                         break;
                         case "plugin_name":
-                            return   ucwords( $item->plugin_name );
+                            $display_name = $item->plugin_name;
+                            if ( class_exists( 'CPFM_Plugin_Resolver' ) ) {
+                                // Old rows: canonical name from alias match; list rows carry no extra_details.
+                                $display_name = CPFM_Plugin_Resolver::canonical_name( $item->plugin_name, isset( $item->extra_details ) ? $item->extra_details : '' );
+                                if ( '' === $display_name ) {
+                                    $display_name = $item->plugin_name;
+                                }
+                            }
+                            return   ucwords( $display_name );
                         break;
                         case "review":
                             return  $item->review;

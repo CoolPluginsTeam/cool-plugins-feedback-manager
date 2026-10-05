@@ -14,6 +14,11 @@ class CPFM_Data_Overview {
      * Check if two plugin names match (handles variations)
      */
     private static function is_same_plugin($plugin_name, $filtered_name) {
+        // Same plugin under an old and a new name.
+        if (class_exists('CPFM_Plugin_Resolver') && CPFM_Plugin_Resolver::same_plugin($plugin_name, $filtered_name)) {
+            return true;
+        }
+
         $normalized_plugin = strtolower(preg_replace('/\s+/', '', trim($plugin_name)));
         $normalized_filtered = strtolower(preg_replace('/\s+/', '', trim($filtered_name)));
         
@@ -83,6 +88,13 @@ class CPFM_Data_Overview {
         
         foreach ($all_plugin_records_unfiltered as $record) {
             $plugin_name = trim($record['plugin_name']);
+            // Old and new names of one plugin add up under its current name.
+            if (!empty($plugin_name) && class_exists('CPFM_Plugin_Resolver')) {
+                $resolved_name = CPFM_Plugin_Resolver::canonical_name($plugin_name);
+                if ($resolved_name !== '') {
+                    $plugin_name = $resolved_name;
+                }
+            }
             if (!empty($plugin_name)) {
                 if (!isset($plugin_status_counts_unfiltered[$plugin_name])) {
                     $plugin_status_counts_unfiltered[$plugin_name] = array(
@@ -138,8 +150,10 @@ class CPFM_Data_Overview {
             $activated = $counts['activated'];
             $deactivated = $counts['deactivated'];
             $activation_rate = $total > 0 ? round(($activated / $total) * 100, 1) : 0;
-            $display_name = ucwords(strtolower($plugin_name));
-            
+            $display_name = class_exists('CPFM_Plugin_Resolver')
+                ? CPFM_Plugin_Resolver::display_name($plugin_name)
+                : ucwords(strtolower($plugin_name));
+
             $html .= '<tr>
                 <td style="padding: 12px; font-weight: 600; color: #646970;">' . esc_html($rank) . '</td>
                 <td style="padding: 12px; font-weight: 500; color: #1d2327;">' . esc_html($display_name) . '</td>
@@ -180,6 +194,11 @@ class CPFM_Data_Overview {
         global $wpdb;
         $tablename = $wpdb->base_prefix . 'cpfm_site_info';
         
+        // An old name selects the same data as the current name.
+        if (!empty($plugin_name) && class_exists('CPFM_Plugin_Resolver')) {
+            $plugin_name = CPFM_Plugin_Resolver::canonical_filter($plugin_name);
+        }
+
         $cache_key = 'cpfm_data_' . sanitize_title($plugin_name);
         $cached_data = get_transient($cache_key);
         
@@ -197,8 +216,17 @@ class CPFM_Data_Overview {
         $params = array();
         
         if (!empty($plugin_name)) {
-            $query .= " WHERE plugin_name = %s";
-            $params[] = trim($plugin_name);
+            $plugin_clause = class_exists('CPFM_Plugin_Resolver')
+                ? CPFM_Plugin_Resolver::filter_clause('plugin_name', $plugin_name, $tablename)
+                : array('sql' => '', 'params' => array());
+
+            if ($plugin_clause['sql'] !== '') {
+                $query .= " WHERE " . $plugin_clause['sql'];
+                $params = array_merge($params, $plugin_clause['params']);
+            } else {
+                $query .= " WHERE plugin_name = %s";
+                $params[] = trim($plugin_name);
+            }
         }
         
         $query .= " ORDER BY site_id ASC";
@@ -274,7 +302,12 @@ class CPFM_Data_Overview {
         
         $tablename = $wpdb->base_prefix . 'cpfm_site_info';
         $feedback_table = $wpdb->base_prefix . 'cpfm_feedbacks';
-        
+
+        // An old name selects the same data as the current name.
+        if (!empty($plugin_filter) && class_exists('CPFM_Plugin_Resolver')) {
+            $plugin_filter = CPFM_Plugin_Resolver::canonical_filter($plugin_filter);
+        }
+
         // Build WHERE conditions
         $conditions = array("si.domain LIKE 'https://%'"); // Check only https
         $params = array();
@@ -287,10 +320,19 @@ class CPFM_Data_Overview {
         }
         
         if (!empty($plugin_filter)) {
-            $conditions[] = "si.plugin_name = %s";
-            $params[] = trim($plugin_filter);
+            $plugin_clause = class_exists('CPFM_Plugin_Resolver')
+                ? CPFM_Plugin_Resolver::filter_clause('si.plugin_name', $plugin_filter, $tablename)
+                : array('sql' => '', 'params' => array());
+
+            if ($plugin_clause['sql'] !== '') {
+                $conditions[] = $plugin_clause['sql'];
+                $params = array_merge($params, $plugin_clause['params']);
+            } else {
+                $conditions[] = "si.plugin_name = %s";
+                $params[] = trim($plugin_filter);
+            }
         }
-        
+
         // Generate cache key based on all filters
         $cache_key = 'cpfm_user_data_' . $plugin_filter;
         
@@ -317,8 +359,17 @@ class CPFM_Data_Overview {
                 $v_query = "SELECT DISTINCT plugin_version FROM {$tablename}";
                 $v_params = array();
                 if (!empty($plugin_filter)) {
-                    $v_query .= " WHERE plugin_name = %s";
-                    $v_params[] = trim($plugin_filter);
+                    $v_clause = class_exists('CPFM_Plugin_Resolver')
+                        ? CPFM_Plugin_Resolver::filter_clause('plugin_name', $plugin_filter, $tablename)
+                        : array('sql' => '', 'params' => array());
+
+                    if ($v_clause['sql'] !== '') {
+                        $v_query .= " WHERE " . $v_clause['sql'];
+                        $v_params = array_merge($v_params, $v_clause['params']);
+                    } else {
+                        $v_query .= " WHERE plugin_name = %s";
+                        $v_params[] = trim($plugin_filter);
+                    }
                 }
                 $unsorted_versions = $wpdb->get_col(!empty($v_params) ? $wpdb->prepare($v_query, $v_params) : $v_query);
                 usort($unsorted_versions, 'version_compare');
@@ -429,7 +480,10 @@ class CPFM_Data_Overview {
         
         $records = array_slice($all_filtered_data, $offset, $per_page);
         
-        // Get latest version for tooltip
+        // Get latest version for tooltip (cached under the plugin's current name)
+        if (!empty($plugin_filter) && class_exists('CPFM_Plugin_Resolver')) {
+            $plugin_filter = CPFM_Plugin_Resolver::canonical_filter($plugin_filter);
+        }
         $versions_cache_key = 'cpfm_versions_' . sanitize_title($plugin_filter);
         $sorted_versions = get_transient($versions_cache_key);
         $latest_version = ($sorted_versions && is_array($sorted_versions)) ? end($sorted_versions) : '';
@@ -507,14 +561,30 @@ class CPFM_Data_Overview {
         
         $tablename = $wpdb->base_prefix . 'cpfm_site_info';
         $feedback_table = $wpdb->base_prefix . 'cpfm_feedbacks';
-        
+
+        // An old name selects the same data as the current name.
+        if (!empty($plugin_filter) && class_exists('CPFM_Plugin_Resolver')) {
+            $plugin_filter = CPFM_Plugin_Resolver::canonical_filter($plugin_filter);
+        }
+        $plugin_clause = (!empty($plugin_filter) && class_exists('CPFM_Plugin_Resolver'))
+            ? CPFM_Plugin_Resolver::filter_clause('plugin_name', $plugin_filter, $tablename)
+            : array('sql' => '', 'params' => array());
+        $plugin_clause_si = (!empty($plugin_filter) && class_exists('CPFM_Plugin_Resolver'))
+            ? CPFM_Plugin_Resolver::filter_clause('si.plugin_name', $plugin_filter, $tablename)
+            : array('sql' => '', 'params' => array());
+
         // 1. Stats & Date Chart Data
         $where_conditions = array();
         $where_params = array();
-        
+
         if (!empty($plugin_filter)) {
-            $where_conditions[] = "plugin_name = %s";
-            $where_params[] = trim($plugin_filter);
+            if ($plugin_clause['sql'] !== '') {
+                $where_conditions[] = $plugin_clause['sql'];
+                $where_params = array_merge($where_params, $plugin_clause['params']);
+            } else {
+                $where_conditions[] = "plugin_name = %s";
+                $where_params[] = trim($plugin_filter);
+            }
         }
         
         if (!empty($date_from) && !empty($date_to)) {
@@ -550,8 +620,13 @@ class CPFM_Data_Overview {
         $status_where_params = array();
         
         if (!empty($plugin_filter)) {
-            $status_where_conditions[] = "si.plugin_name = %s";
-            $status_where_params[] = trim($plugin_filter);
+            if ($plugin_clause_si['sql'] !== '') {
+                $status_where_conditions[] = $plugin_clause_si['sql'];
+                $status_where_params = array_merge($status_where_params, $plugin_clause_si['params']);
+            } else {
+                $status_where_conditions[] = "si.plugin_name = %s";
+                $status_where_params[] = trim($plugin_filter);
+            }
         }
         
         if (!empty($date_from) && !empty($date_to)) {
@@ -715,7 +790,9 @@ class CPFM_Data_Overview {
                 'themes' => $prepare_chart_data($theme_counts, 5),
                 'active_plugins' => $prepare_chart_data($active_plugins_counts, 10)
             ],
-            'filter_name' => !empty($plugin_filter) ? ucwords(strtolower($plugin_filter)) : 'All Plugins'
+            'filter_name' => !empty($plugin_filter)
+                ? (class_exists('CPFM_Plugin_Resolver') ? CPFM_Plugin_Resolver::display_name($plugin_filter) : ucwords(strtolower($plugin_filter)))
+                : 'All Plugins'
         ];
         
         wp_send_json_success($response);
@@ -731,17 +808,25 @@ class CPFM_Data_Overview {
         
         $tablename = $wpdb->base_prefix . 'cpfm_site_info';
         
-        $cats = $wpdb->get_col("
-            SELECT DISTINCT plugin_name
-            FROM {$tablename}
-            WHERE plugin_name IS NOT NULL AND plugin_name <> ''
-            ORDER BY plugin_name ASC
-        ");
-        if ($cats) {
-            $cats = array_map('trim', $cats);
-            $cats = array_unique($cats);
+        // value => label. One entry per plugin: old and new names are merged by the resolver.
+        $cat_options = class_exists('CPFM_Plugin_Resolver') ? CPFM_Plugin_Resolver::filter_options($tablename) : array();
+
+        if (empty($cat_options)) {
+            // Resolver missing or returned nothing: previous behaviour.
+            $cats = $wpdb->get_col("
+                SELECT DISTINCT plugin_name
+                FROM {$tablename}
+                WHERE plugin_name IS NOT NULL AND plugin_name <> ''
+                ORDER BY plugin_name ASC
+            ");
+            if ($cats) {
+                foreach (array_unique(array_map('trim', $cats)) as $plugin_name_trimmed) {
+                    $cat_options[$plugin_name_trimmed] = ucwords(strtolower($plugin_name_trimmed));
+                }
+            }
         }
-        
+        $cats = $cat_options;
+
         $plugin_filter = isset($_REQUEST['cat-filter']) ? sanitize_text_field($_REQUEST['cat-filter']) : 'Cool Timeline';
         
         // Initialize variables for filters
@@ -760,15 +845,18 @@ class CPFM_Data_Overview {
                     <select name="cat-filter" id="cat-filter" class="ewc-filter-cat" style="margin-right: 10px;">
                         <?php 
                         $selected_filter = isset($_REQUEST['cat-filter']) ? trim($_REQUEST['cat-filter']) : 'Cool Timeline';
+                        // An old name in the URL selects the plugin's current entry.
+                        if ($selected_filter !== '' && class_exists('CPFM_Plugin_Resolver')) {
+                            $selected_filter = CPFM_Plugin_Resolver::canonical_filter($selected_filter);
+                        }
                         ?>
                         <option value="" <?php echo ($selected_filter === '') ? 'selected="selected"' : ''; ?>>All Plugins</option>
                         <?php
-                        foreach ($cats as $plugin_name) :
-                            $plugin_name_trimmed = trim($plugin_name);
-                            $selected = ($selected_filter === $plugin_name_trimmed) ? ' selected="selected"' : '';
+                        foreach ($cats as $option_value => $option_label) :
+                            $selected = (strcasecmp((string) $selected_filter, (string) $option_value) === 0) ? ' selected="selected"' : '';
                         ?>
-                        <option value="<?php echo esc_attr($plugin_name_trimmed); ?>" <?php echo $selected; ?>>
-                            <?php echo esc_html(ucwords(strtolower($plugin_name_trimmed))); ?>
+                        <option value="<?php echo esc_attr($option_value); ?>" <?php echo $selected; ?>>
+                            <?php echo esc_html($option_label); ?>
                         </option>
                         <?php endforeach; ?>
                     </select> 

@@ -17,6 +17,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
         function __construct(){
             require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
             require_once CPFM_DIR . 'cpfm-payload-helper.php';
+            require_once CPFM_DIR . 'cpfm-plugin-resolver.php';
             require_once CPFM_DIR . 'cpfm-feedback-db.php';
             require_once CPFM_DIR . 'cpfm-fluentcrm.php';
 
@@ -54,6 +55,39 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
                   'permission_callback' => '__return_true'
             ));
         }
+        /**
+         * Map the reported plugin to its canonical name using the plugin_id sent in
+         * extra_details. No plugin_id / unknown plugin: returns the inputs unchanged.
+         *
+         * @param string $plugin_name   Name as reported by the client.
+         * @param string $extra_details Encoded extra_details (JSON / serialized / '').
+         * @return array{0:string,1:string} [plugin_name, extra_details]
+         */
+        function cpfm_apply_plugin_identity( $plugin_name, $extra_details ) {
+
+            if ( ! class_exists( 'CPFM_Plugin_Resolver' ) || ! is_string( $plugin_name ) || '' === trim( $plugin_name ) ) {
+                return array( $plugin_name, $extra_details );
+            }
+
+            $resolved = CPFM_Plugin_Resolver::resolve( $plugin_name, $extra_details );
+
+            if ( 'raw' === $resolved['source'] || '' === $resolved['name'] || $resolved['name'] === $plugin_name ) {
+                return array( $plugin_name, $extra_details );
+            }
+
+            // Keep what the client actually reported, only when we changed the name.
+            $decoded = cpfm_decode_payload( $extra_details );
+            if ( is_array( $decoded ) && ! empty( $decoded ) && ! isset( $decoded['plugin_name_original'] ) ) {
+                $decoded['plugin_name_original'] = $plugin_name;
+                $encoded = wp_json_encode( $decoded );
+                if ( is_string( $encoded ) && '' !== $encoded ) {
+                    $extra_details = $encoded;
+                }
+            }
+
+            return array( $resolved['name'], $extra_details );
+        }
+
         function cpfm_site_info_request(WP_REST_Request $request) {
 
             global $wpdb;
@@ -64,6 +98,7 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
             $plugin_initial = sanitize_text_field($request->get_param('plugin_initial'));
             $email          = sanitize_email($request->get_param('email'));
             $extra_details  = cpfm_encode_payload_for_storage( $request->get_param( 'extra_details' ) );
+            list( $plugin_name, $extra_details ) = $this->cpfm_apply_plugin_identity( $plugin_name, $extra_details );
             $server_info    = cpfm_encode_payload_for_storage( $request->get_param( 'server_info' ) );
             $site_id        = sanitize_text_field($request->get_param('site_id'));
             $site_url       = sanitize_text_field($request->get_param('site_url'));
@@ -431,6 +466,8 @@ register_activation_hook( __FILE__, array( 'Cool_Plugins_Feedback_Manager', 'act
                     'domain'          => isset($_REQUEST['domain']) ? esc_url($_REQUEST['domain']) : '',
                     'email'           => (!empty($_REQUEST['email']) && is_email($_REQUEST['email'])) ? sanitize_email($_REQUEST['email']) : 'N/A',
                 );
+
+                list( $data['plugin_name'], $data['extra_details'] ) = $this->cpfm_apply_plugin_identity( $data['plugin_name'], $data['extra_details'] );
 
                 if(!empty($existing_id)) {
                 
