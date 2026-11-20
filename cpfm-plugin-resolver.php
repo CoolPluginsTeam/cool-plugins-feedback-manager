@@ -153,6 +153,7 @@ if ( ! class_exists( 'CPFM_Plugin_Resolver' ) ) {
 				'Country Code For Elementor Form Telephone Field',
 				'Form Input Masks for Elementor Form',
 				// other
+				'Cool Flipbook',
 			);
 
 			$extra = apply_filters( 'cpfm_plugin_latest_names', array() );
@@ -214,6 +215,9 @@ if ( ! class_exists( 'CPFM_Plugin_Resolver' ) ) {
 				'conditional-fields-for-elementor-form'                => 'Conditional Fields for Elementor Form',
 				'Cool Formkit Lite'                                    => 'Cool FormKit Lite - Elementor Form Builder',
 				'Country Code Field For Elementor Form'                => 'Country Code For Elementor Form Telephone Field',
+				// Other.
+				'Cool Flipbox'                                         => 'Cool Flipbook',
+				'Flip Boxes'                                           => 'Cool Flipbook',
 			);
 
 			$extra = apply_filters( 'cpfm_plugin_legacy_names', array() );
